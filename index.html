@@ -3,10 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="A fully offline, cryptographically secure password generator. No data leaves your browser.">
-  <title>Offline Secure Password Generator</title>
-  <link rel="dns-prefetch" href="https://fonts.gstatic.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <meta name="description" content="A fully offline, cryptographically secure password & passphrase generator with PWA support. No data leaves your browser.">
+  <meta name="theme-color" content="#7c3aed">
+
+  <title>Offline Secure Password & Passphrase Generator</title>
+
+  <!-- PWA & Favicon -->
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+
+  <!-- Local Font Preloads -->
+  <link rel="preload" href="fonts/Inter.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/JetBrainsMono.woff2" as="font" type="font/woff2" crossorigin>
 
   <link rel="stylesheet" href="css/fonts.css">
   <link rel="stylesheet" href="css/styles.css">
@@ -14,46 +23,100 @@
 <body>
 
   <header class="header">
-    <div class="badge">
-      <svg viewBox="0 0 16 16" width="10" height="10" fill="currentColor"><path d="M8 1a4 4 0 00-4 4v1H3a1 1 0 00-1 1v7a1 1 0 001 1h10a1 1 0 001-1V7a1 1 0 00-1-1h-1V5a4 4 0 00-4-4zm0 1.5A2.5 2.5 0 0110.5 5v1h-5V5A2.5 2.5 0 018 2.5zM8 9a1 1 0 110 2 1 1 0 010-2z"/></svg>
-      100% Offline · No Data Leaves Your Browser
+    <div class="header-top">
+      <div class="badge">
+        <svg viewBox="0 0 16 16" width="10" height="10" fill="currentColor"><path d="M8 1a4 4 0 00-4 4v1H3a1 1 0 00-1 1v7a1 1 0 001 1h10a1 1 0 001-1V7a1 1 0 00-1-1h-1V5a4 4 0 00-4-4zm0 1.5A2.5 2.5 0 0110.5 5v1h-5V5A2.5 2.5 0 018 2.5zM8 9a1 1 0 110 2 1 1 0 010-2z"/></svg>
+        100% Offline · PWA
+      </div>
+      <div class="theme-picker" aria-label="Theme selector">
+        <div class="theme-dot active" data-set-theme="violet" title="Neon Violet"></div>
+        <div class="theme-dot" data-set-theme="emerald" title="Emerald Matrix"></div>
+        <div class="theme-dot" data-set-theme="sapphire" title="Sapphire Glass"></div>
+        <div class="theme-dot" data-set-theme="cyberpunk" title="Cyberpunk Amber"></div>
+      </div>
     </div>
-    <h1>Secure Password Generator</h1>
-    <p>Cryptographically random · Works without internet</p>
+    <h1>Secure Generator</h1>
+    <p>Cryptographically random · Passwords & Passphrases</p>
   </header>
 
   <main class="card" role="main">
 
-    <div class="label">Password Length</div>
+    <!-- Mode Switcher Tabs -->
+    <div class="mode-tabs" role="tablist" aria-label="Generator mode">
+      <button class="tab-btn active" id="tabPassword" role="tab" aria-selected="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+        Password
+      </button>
+      <button class="tab-btn" id="tabPassphrase" role="tab" aria-selected="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        Passphrase
+      </button>
+    </div>
+
+    <div class="label" id="sliderLabel">Password Length</div>
     <div class="length-row">
-      <input type="range" id="lengthSlider" min="4" max="128" value="16" aria-label="Password length slider">
-      <input type="number" id="lengthBox" class="length-box" min="4" max="128" value="16" aria-label="Password length">
+      <input type="range" id="lengthSlider" min="4" max="128" value="16" aria-label="Length slider">
+      <input type="number" id="lengthBox" class="length-box" min="4" max="128" value="16" aria-label="Length input">
     </div>
 
-    <div class="label">Character Types</div>
-    <div class="toggles" role="group" aria-label="Character type toggles">
-      <div class="toggle-item active" id="tog-upper" role="checkbox" aria-checked="true" tabindex="0" aria-label="Uppercase letters">
-        <span>Uppercase</span>
-        <div class="toggle-switch"></div>
-      </div>
-      <div class="toggle-item active" id="tog-lower" role="checkbox" aria-checked="true" tabindex="0" aria-label="Lowercase letters">
-        <span>Lowercase</span>
-        <div class="toggle-switch"></div>
-      </div>
-      <div class="toggle-item active" id="tog-nums" role="checkbox" aria-checked="true" tabindex="0" aria-label="Numbers">
-        <span>Numbers</span>
-        <div class="toggle-switch"></div>
-      </div>
-      <div class="toggle-item active" id="tog-sym" role="checkbox" aria-checked="true" tabindex="0" aria-label="Symbols">
-        <span>Symbols</span>
-        <div class="toggle-switch"></div>
+    <!-- Password Character Set Options -->
+    <div id="passwordOptions">
+      <div class="label">Character Types</div>
+      <div class="toggles" role="group" aria-label="Character type toggles">
+        <div class="toggle-item active" id="tog-upper" role="checkbox" aria-checked="true" tabindex="0">
+          <span>Uppercase (A-Z)</span>
+          <div class="toggle-switch"></div>
+        </div>
+        <div class="toggle-item active" id="tog-lower" role="checkbox" aria-checked="true" tabindex="0">
+          <span>Lowercase (a-z)</span>
+          <div class="toggle-switch"></div>
+        </div>
+        <div class="toggle-item active" id="tog-nums" role="checkbox" aria-checked="true" tabindex="0">
+          <span>Numbers (0-9)</span>
+          <div class="toggle-switch"></div>
+        </div>
+        <div class="toggle-item active" id="tog-sym" role="checkbox" aria-checked="true" tabindex="0">
+          <span>Symbols (!@#$)</span>
+          <div class="toggle-switch"></div>
+        </div>
+        <div class="toggle-item full-width" id="tog-ambiguous" role="checkbox" aria-checked="false" tabindex="0">
+          <span>Exclude Ambiguous (l, 1, I, O, 0, o)</span>
+          <div class="toggle-switch"></div>
+        </div>
       </div>
     </div>
 
-    <div class="label">Generated Password</div>
+    <!-- Passphrase Options -->
+    <div id="passphraseOptions" hidden>
+      <div class="label">Passphrase Settings</div>
+      <div class="passphrase-controls">
+        <div class="control-group">
+          <label for="selectSeparator">Word Separator</label>
+          <select id="selectSeparator" class="select-box">
+            <option value="hyphen">Hyphen (-)</option>
+            <option value="space">Space ( )</option>
+            <option value="period">Period (.)</option>
+            <option value="underscore">Underscore (_)</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label>Options</label>
+          <div class="toggle-item active" id="tog-capitalize" role="checkbox" aria-checked="true" tabindex="0">
+            <span>Capitalize</span>
+            <div class="toggle-switch"></div>
+          </div>
+        </div>
+        <div class="toggle-item full-width" id="tog-passnum" role="checkbox" aria-checked="false" tabindex="0">
+          <span>Append Number</span>
+          <div class="toggle-switch"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="label">Generated Output</div>
     <div class="pass-box" id="passBox">
-      <div id="passwordText" aria-live="polite" aria-label="Generated password"></div>
-      <button class="copy-btn" id="copyBtn" title="Copy password" aria-label="Copy password to clipboard">
+      <div id="passwordText" aria-live="polite" aria-label="Generated result"></div>
+      <button class="copy-btn" id="copyBtn" title="Copy output" aria-label="Copy to clipboard">
         <svg id="copyIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
         </svg>
@@ -73,19 +136,28 @@
       </div>
     </div>
 
-    <div id="entropyInfo"></div>
+    <div class="metrics-row">
+      <span id="entropyInfo">~0 bits entropy</span>
+      <span id="crackTimeInfo">Time to crack: Instant</span>
+    </div>
 
-    <button class="btn-generate" id="generateBtn" aria-label="Generate new password">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/>
-      </svg>
-      Generate Password
-    </button>
+    <div class="actions-group">
+      <button class="btn-generate" id="generateBtn" aria-label="Generate new output">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/>
+        </svg>
+        Generate
+      </button>
+      <button class="btn-secondary" id="bulkBtn" title="Bulk Generator">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        Bulk
+      </button>
+    </div>
 
     <div class="history-wrap" id="historyWrap" hidden>
       <div class="history-header">
-        <div class="label">Recent Passwords</div>
-        <button class="btn-clear-hist" id="clearHistBtn" aria-label="Clear recent password history">
+        <div class="label">Recent History</div>
+        <button class="btn-clear-hist" id="clearHistBtn" aria-label="Clear password history">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="3 6 5 6 21 6"/>
             <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
@@ -94,13 +166,38 @@
           Clear
         </button>
       </div>
-      <ul id="historyList" aria-label="Recently generated passwords"></ul>
+      <ul id="historyList" aria-label="Recently generated outputs"></ul>
     </div>
 
   </main>
 
+  <!-- Bulk Generator Modal -->
+  <div class="modal-overlay" id="bulkModal" role="dialog" aria-modal="true" aria-labelledby="bulkTitle">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 id="bulkTitle">Bulk Password Generator</h2>
+        <button class="modal-close" id="closeBulkModal" aria-label="Close">&times;</button>
+      </div>
+      <div class="control-group" style="margin-bottom: 12px;">
+        <label for="bulkCount">Quantity</label>
+        <select id="bulkCount" class="select-box">
+          <option value="5">5 Passwords</option>
+          <option value="10" selected>10 Passwords</option>
+          <option value="20">20 Passwords</option>
+          <option value="50">50 Passwords</option>
+        </select>
+      </div>
+      <textarea id="bulkTextarea" class="bulk-textarea" readonly></textarea>
+      <div class="modal-actions">
+        <button class="btn-secondary" id="copyBulkBtn">Copy All</button>
+        <button class="btn-generate" id="downloadBulkBtn" style="flex: initial; padding: 10px 18px;">Download TXT</button>
+      </div>
+    </div>
+  </div>
+
   <div id="toast" class="toast" role="alert" aria-live="assertive"></div>
 
+  <script src="js/words.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

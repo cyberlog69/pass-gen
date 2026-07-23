@@ -1,40 +1,51 @@
-# 🔐 Offline Secure Password Generator
+# 🔐 Offline Secure Password & Passphrase Generator (PWA)
 
-A **fully offline**, cryptographically secure password generator. No data ever leaves your browser.
+A **100% offline**, cryptographically secure Password & Passphrase Generator built with modern UI aesthetics, PWA installability, and privacy-first security features.
 
 ![License](https://img.shields.io/github/license/cyberlog69/pass-gen)
+![PWA Ready](https://img.shields.io/badge/PWA-Ready-7c3aed)
+![Offline](https://img.shields.io/badge/Offline-100%25-22c55e)
 
 ---
 
-## ✨ Features
+## ✨ Key Features
 
-- 🔒 **Cryptographically random** — uses `crypto.getRandomValues()` (CSPRNG), not `Math.random()`
-- 🌐 **100% Offline** — all fonts and assets are bundled locally; no network requests at runtime
-- 🛡️ **Guaranteed character inclusion** — at least one character from each enabled set is always included
-- 📊 **Entropy meter** — displays bits of entropy and a visual strength indicator (Weak → Very Strong)
-- 📋 **Copy to clipboard** — one-click copy with visual feedback
-- 🕐 **Password history** — keeps the last 5 generated passwords, each individually copyable
-- ⌨️ **Keyboard shortcut** — `Ctrl + Enter` (or `Cmd + Enter`) to generate instantly
-- ♿ **Accessible** — ARIA roles, labels, and keyboard navigation throughout
-- 📱 **Responsive** — works on mobile and desktop
+### 🔑 Dual Generator Modes
+- **Password Mode**: Configurable length (4–128 characters) with toggles for Uppercase, Lowercase, Numbers, and Symbols.
+- **Passphrase Mode (Diceware)**: Generate memorable multi-word passphrases using an offline EFF wordlist. Custom separators (`-`, ` `, `.`, `_`), capitalization, and optional number injection.
+
+### 🛡️ Advanced Security
+- **Cryptographically Random**: Uses `crypto.getRandomValues()` (Web Crypto API CSPRNG) with modulo-bias elimination.
+- **Exclude Ambiguous Characters**: Option to strip easily confused characters (`l, 1, I, O, 0, o, Q, S, 5, Z, 2`).
+- **Auto-Wipe Clipboard**: Automatically clears the clipboard after 30 seconds to prevent password leakage.
+- **Masked History**: Recent history items are masked (`••••••••••••`) by default with an eye icon toggle to reveal/hide.
+- **Entropy & Crack Time Estimator**: Displays bit entropy alongside real-world estimated GPU cluster crack times.
+
+### 📱 Progressive Web App (PWA)
+- **Installable**: Includes `manifest.json` for "Add to Home Screen" on iOS, Android, macOS, and Windows.
+- **Service Worker (`sw.js`)**: Cache-first strategy for static assets. Works 100% offline with zero external network requests.
+- **Bundled Fonts**: `Inter.woff2` and `JetBrainsMono.woff2` preloaded locally.
+
+### 🎨 Themes & Bulk Tools
+- **Theme Picker**: 4 built-in theme presets (*Neon Violet*, *Emerald Matrix*, *Sapphire Glass*, *Cyberpunk Amber*).
+- **Bulk Password Generator**: Modal to batch generate 5 to 50 passwords/passphrases at once, copy all, or download as `.txt`.
+- **Haptic Feedback**: Subtle vibration response on mobile devices.
 
 ---
 
 ## 🚀 Getting Started
 
-No installation or build step required. Just open the file:
+No build step or dependencies required!
 
 ```bash
-# Clone the repo
+# Clone the repository
 git clone https://github.com/cyberlog69/pass-gen.git
 
-# Open in your browser
-open index.html       # macOS
+# Open index.html in your browser
 start index.html      # Windows
+open index.html       # macOS
 xdg-open index.html   # Linux
 ```
-
-Or simply double-click `index.html` in your file explorer.
 
 ---
 
@@ -42,53 +53,34 @@ Or simply double-click `index.html` in your file explorer.
 
 ```
 pass-gen/
-├── index.html          # Main app — markup only
+├── index.html          # Clean HTML markup & PWA metadata
+├── manifest.json       # Web App Manifest for PWA installation
+├── sw.js               # Service Worker for offline asset caching
+├── icon.svg            # PWA App Icon & Favicon
 ├── css/
-│   ├── styles.css      # All styles (dark theme, glassmorphism, animations)
-│   └── fonts.css       # Local @font-face declarations
+│   ├── styles.css      # Themes, glassmorphic card, tabs, modals
+│   └── fonts.css       # Local @font-face rules
 ├── fonts/
 │   ├── Inter.woff2     # Bundled Inter font
 │   └── JetBrainsMono.woff2  # Bundled JetBrains Mono font
 ├── js/
-│   └── app.js          # All logic (IIFE, strict mode, public PassGen API)
+│   ├── words.js        # Offline EFF wordlist for passphrase mode
+│   └── app.js          # Main app logic, CSPRNG algorithms & PassGen API
 └── tests/
-    └── test.html       # Browser-based unit test suite
+    └── test.html       # Comprehensive unit test suite
 ```
 
 ---
 
-## 🧪 Running Tests
+## 🧪 Unit Tests
 
-Open `tests/test.html` in your browser. The test suite covers:
+Open `tests/test.html` in your web browser. The test suite covers:
 
-| Test | Description |
-|------|-------------|
-| `secureRandom` bounds | Verifies output is always within `[0, max)` |
-| `secureRandom` distribution | Chi-squared uniformity check |
-| `shuffle` correctness | Preserves all elements and length |
-| `buildCharset` | Correct character set composition |
-| `calcEntropy` | Accurate entropy bit calculation |
-| Strength mapping | Correct Weak / Fair / Strong / Very Strong classification |
-
----
-
-## 🔧 Character Sets
-
-| Toggle | Characters |
-|--------|-----------|
-| Uppercase | `A–Z` (26) |
-| Lowercase | `a–z` (26) |
-| Numbers | `0–9` (10) |
-| Symbols | `!@#$%^&*()-_=+[]{}|;:,.<>?` (28) |
-
----
-
-## 🛡️ Security Notes
-
-- All randomness comes from the **Web Crypto API** (`crypto.getRandomValues`), which is cryptographically strong.
-- A **bias-rejection loop** in `secureRandom()` eliminates modulo bias.
-- The **Fisher-Yates shuffle** (using `secureRandom`) is used to shuffle the final password.
-- No data is sent anywhere — the app works fully offline after the initial file load.
+- EFF Wordlist loading and integrity
+- `secureRandom` bounds and CSPRNG behavior
+- Ambiguous character stripping (`AMBIGUOUS` regex)
+- Passphrase generation, separators, and capitalization
+- Bit entropy calculations and crack time estimations
 
 ---
 

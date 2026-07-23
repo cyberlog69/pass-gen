@@ -1,0 +1,17 @@
+{
+  "name": "Offline Secure Password Generator",
+  "short_name": "PassGen",
+  "description": "A fully offline, cryptographically secure password & passphrase generator.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0a0a0f",
+  "theme_color": "#7c3aed",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
