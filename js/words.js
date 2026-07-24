@@ -1,6 +1,6 @@
 (function () {
   'use strict';
-  window.EFF_WORDS = [
+  window.EFF_WORDS = Object.freeze([
     "ability","able","about","above","absent","absorb","abstract","absurd","accent","accept",
     "access","accident","account","accuse","achieve","acid","acoustic","acquire","across","act",
     "action","active","actor","actress","actual","adapt","add","addict","address","adjust",
@@ -206,5 +206,5 @@
     "wood","wool","word","work","world","worry","worth","wrap","wreck","wrestle",
     "wrist","write","wrong","yard","year","yellow","you","young","youth","zebra",
     "zero","zone","zoo"
-  ];
+  ]);
 })();

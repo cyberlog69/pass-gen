@@ -22,6 +22,9 @@
 
   <!-- Minimal DOM stubs required by app.js -->
   <script>
+    // Enable test-only PassGen API export (PATCH #4)
+    window.__PASSGEN_TEST__ = true;
+
     const stubIds = [
       'tabPassword','tabPassphrase','passwordOptions','passphraseOptions','sliderLabel',
       'lengthSlider','lengthBox','passwordText','copyBtn','copyIcon','generateBtn','bulkBtn',

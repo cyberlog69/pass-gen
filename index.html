@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- PATCH #8: Strict Content Security Policy — no inline scripts, no external connections -->
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; manifest-src 'self'; connect-src 'none';">
   <meta name="description" content="A fully offline, cryptographically secure password & passphrase generator with PWA support. No data leaves your browser.">
   <meta name="theme-color" content="#7c3aed">
 

@@ -191,6 +191,10 @@
     generate();
   }
 
+  // ── Allowed values for validated inputs ────────────────────
+  const ALLOWED_THEMES = Object.freeze(['violet', 'emerald', 'sapphire', 'cyberpunk']);
+  const ALLOWED_SEPARATORS = Object.freeze(['hyphen', 'space', 'period', 'underscore']);
+
   // ── Generator Dispatch ──────────────────────────────────────
   function generate() {
     triggerHaptic();
@@ -198,7 +202,9 @@
     let bits = 0;
 
     if (currentMode === 'password') {
-      const len = parseInt(lengthBox.value, 10) || 16;
+      // PATCH #6: Clamp length to strict bounds before use
+      const rawLen = parseInt(lengthBox.value, 10);
+      const len = (isNaN(rawLen) ? 16 : Math.min(128, Math.max(4, rawLen)));
       const excludeAmbiguous = togAmbiguous.classList.contains('active');
       const activeSets = getActiveCharsets(toggleEls, excludeAmbiguous);
 
@@ -210,9 +216,14 @@
       password = generateStandardPassword(len, activeSets);
       bits = calcEntropyBits('password', { len, activeSets });
     } else {
-      const wordCount = parseInt(lengthBox.value, 10) || 4;
+      // PATCH #6: Clamp word count to strict bounds
+      const rawCount = parseInt(lengthBox.value, 10);
+      const wordCount = (isNaN(rawCount) ? 4 : Math.min(10, Math.max(3, rawCount)));
+      // PATCH #9: Allowlist separator value
+      const rawSep = selectSeparator.value;
+      const safeSep = ALLOWED_SEPARATORS.includes(rawSep) ? rawSep : 'hyphen';
       const sepMap = { hyphen: '-', space: ' ', period: '.', underscore: '_' };
-      const separator = sepMap[selectSeparator.value] || '-';
+      const separator = sepMap[safeSep];
       const capitalize = togCapitalize.classList.contains('active');
       const includeNumber = togIncludeNum.classList.contains('active');
 
@@ -273,12 +284,35 @@
       const actions = document.createElement('div');
       actions.className = 'hist-actions';
 
+      // PATCH #1: Build SVG nodes with createElementNS instead of innerHTML to prevent XSS
       const toggleEyeBtn = document.createElement('button');
       toggleEyeBtn.className = 'hist-btn';
       toggleEyeBtn.title = item.masked ? 'Reveal' : 'Mask';
-      toggleEyeBtn.innerHTML = item.masked
-        ? `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`
-        : `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
+      (() => {
+        const NS = 'http://www.w3.org/2000/svg';
+        const svg = document.createElementNS(NS, 'svg');
+        svg.setAttribute('viewBox', '0 0 24 24');
+        svg.setAttribute('width', '12');
+        svg.setAttribute('height', '12');
+        svg.setAttribute('fill', 'none');
+        svg.setAttribute('stroke', 'currentColor');
+        svg.setAttribute('stroke-width', '2');
+        if (item.masked) {
+          const path = document.createElementNS(NS, 'path');
+          path.setAttribute('d', 'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z');
+          const circle = document.createElementNS(NS, 'circle');
+          circle.setAttribute('cx', '12'); circle.setAttribute('cy', '12'); circle.setAttribute('r', '3');
+          svg.append(path, circle);
+        } else {
+          const path = document.createElementNS(NS, 'path');
+          path.setAttribute('d', 'M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24');
+          const line = document.createElementNS(NS, 'line');
+          line.setAttribute('x1', '1'); line.setAttribute('y1', '1');
+          line.setAttribute('x2', '23'); line.setAttribute('y2', '23');
+          svg.append(path, line);
+        }
+        toggleEyeBtn.appendChild(svg);
+      })();
       toggleEyeBtn.addEventListener('click', () => {
         item.masked = !item.masked;
         renderHistory();
@@ -313,16 +347,23 @@
       startAutoWipe(text);
       showToast('Copied! Will auto-clear in 30s', 'success');
     } catch {
-      // Fallback
+      // PATCH #7: Secure fallback — hide from screen readers and guarantee cleanup
       const ta = document.createElement('textarea');
       ta.value = text;
-      ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
-      document.body.appendChild(ta);
-      ta.focus(); ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-      startAutoWipe(text);
-      showToast('Copied! Will auto-clear in 30s', 'success');
+      ta.setAttribute('aria-hidden', 'true');
+      ta.setAttribute('tabindex', '-1');
+      ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none';
+      try {
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        document.execCommand('copy');
+        startAutoWipe(text);
+        showToast('Copied! Will auto-clear in 30s', 'success');
+      } finally {
+        // Guaranteed cleanup even if an exception occurs
+        if (ta.parentNode) document.body.removeChild(ta);
+      }
     }
   }
 
@@ -342,17 +383,31 @@
     }, 30000);
   }
 
+  // PATCH #2: Replace innerHTML icon updates with safe DOM methods
+  function setSvgIcon(svgEl, nodes) {
+    while (svgEl.firstChild) svgEl.removeChild(svgEl.firstChild);
+    const NS = 'http://www.w3.org/2000/svg';
+    nodes.forEach(({ tag, attrs }) => {
+      const el = document.createElementNS(NS, tag);
+      Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, v));
+      svgEl.appendChild(el);
+    });
+  }
+
   function copyCurrentPassword() {
     const text = passText.textContent.trim();
     if (!text) { showToast('Generate a password first', 'error'); return; }
 
     copyBtn.classList.add('copied');
-    copyIcon.innerHTML = `<polyline points="20 6 9 17 4 12"/>`;
+    setSvgIcon(copyIcon, [{ tag: 'polyline', attrs: { points: '20 6 9 17 4 12' } }]);
     copyText(text);
 
     setTimeout(() => {
       copyBtn.classList.remove('copied');
-      copyIcon.innerHTML = `<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>`;
+      setSvgIcon(copyIcon, [
+        { tag: 'rect', attrs: { x: '9', y: '9', width: '13', height: '13', rx: '2' } },
+        { tag: 'path', attrs: { d: 'M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1' } }
+      ]);
     }, 2000);
   }
 
@@ -373,19 +428,26 @@
   }
 
   function renderBulkPasswords() {
-    const count = parseInt(bulkCountSelect.value, 10) || 10;
+    const rawCount = parseInt(bulkCountSelect.value, 10);
+    // PATCH #6: Clamp bulk count to prevent performance DoS
+    const count = (isNaN(rawCount) ? 10 : Math.min(50, Math.max(1, rawCount)));
     const items = [];
 
     for (let i = 0; i < count; i++) {
       if (currentMode === 'password') {
-        const len = parseInt(lengthBox.value, 10) || 16;
+        const rawLen = parseInt(lengthBox.value, 10);
+        const len = (isNaN(rawLen) ? 16 : Math.min(128, Math.max(4, rawLen)));
         const excludeAmbiguous = togAmbiguous.classList.contains('active');
         const activeSets = getActiveCharsets(toggleEls, excludeAmbiguous);
         items.push(generateStandardPassword(len, activeSets));
       } else {
-        const wordCount = parseInt(lengthBox.value, 10) || 4;
+        const rawCount2 = parseInt(lengthBox.value, 10);
+        const wordCount = (isNaN(rawCount2) ? 4 : Math.min(10, Math.max(3, rawCount2)));
+        // PATCH #9: Allowlist separator value
+        const rawSep = selectSeparator.value;
+        const safeSep = ALLOWED_SEPARATORS.includes(rawSep) ? rawSep : 'hyphen';
         const sepMap = { hyphen: '-', space: ' ', period: '.', underscore: '_' };
-        const separator = sepMap[selectSeparator.value] || '-';
+        const separator = sepMap[safeSep];
         const capitalize = togCapitalize.classList.contains('active');
         const includeNumber = togIncludeNum.classList.contains('active');
         items.push(generatePassphrase(wordCount, separator, capitalize, includeNumber));
@@ -402,7 +464,10 @@
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `passwords_${Date.now()}.txt`;
+    // PATCH #11: Use crypto random suffix instead of predictable timestamp
+    const randHex = Array.from(crypto.getRandomValues(new Uint8Array(4)))
+      .map(b => b.toString(16).padStart(2, '0')).join('');
+    a.download = `passwords_${randHex}.txt`;
     a.click();
     URL.revokeObjectURL(url);
     showToast('Downloaded passwords TXT', 'success');
@@ -411,10 +476,14 @@
   // ── Theme Switcher ──────────────────────────────────────────
   function initTheme() {
     const saved = localStorage.getItem('passgen_theme') || 'violet';
-    setTheme(saved);
+    // PATCH #5: Validate stored theme against allowlist before use
+    const safeTheme = ALLOWED_THEMES.includes(saved) ? saved : 'violet';
+    setTheme(safeTheme);
   }
 
   function setTheme(themeName) {
+    // PATCH #5: Strict allowlist — reject any value not in the approved list
+    if (!ALLOWED_THEMES.includes(themeName)) return;
     if (themeName === 'violet') {
       document.documentElement.removeAttribute('data-theme');
     } else {
@@ -469,9 +538,21 @@
   copyBulkBtn.addEventListener('click', () => copyText(bulkTextarea.value));
   downloadBulkBtn.addEventListener('click', downloadBulkTxt);
 
-  // Themes
+  // PATCH #12: Close modal on Escape key and outside-click for keyboard accessibility
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && bulkModal.classList.contains('open')) closeBulkModal();
+  });
+  bulkModal.addEventListener('click', e => {
+    if (e.target === bulkModal) closeBulkModal();
+  });
+
+  // Themes — PATCH #5: Allowlist validated inside setTheme()
   document.querySelectorAll('.theme-dot').forEach(dot => {
-    dot.addEventListener('click', () => setTheme(dot.getAttribute('data-set-theme')));
+    dot.addEventListener('click', () => {
+      const theme = dot.getAttribute('data-set-theme');
+      // Only call setTheme with values from the DOM that are in the allowlist
+      if (ALLOWED_THEMES.includes(theme)) setTheme(theme);
+    });
   });
 
   // Keyboard shortcut Ctrl/Cmd + Enter
@@ -490,18 +571,21 @@
   initTheme();
   generate();
 
-  // Export for test suite
-  window.PassGen = {
-    secureRandom,
-    shuffle,
-    getActiveCharsets,
-    buildCharset,
-    generateStandardPassword,
-    generatePassphrase,
-    calcEntropyBits,
-    estimateCrackTime,
-    CHARS,
-    AMBIGUOUS,
-    STRENGTH_LEVELS
-  };
+  // PATCH #4: Freeze the PassGen export to prevent external mutation of core functions.
+  // Only expose in non-production contexts (when test runner flag is set).
+  if (typeof window.__PASSGEN_TEST__ !== 'undefined' && window.__PASSGEN_TEST__ === true) {
+    window.PassGen = Object.freeze({
+      secureRandom,
+      shuffle,
+      getActiveCharsets,
+      buildCharset,
+      generateStandardPassword,
+      generatePassphrase,
+      calcEntropyBits,
+      estimateCrackTime,
+      CHARS,
+      AMBIGUOUS,
+      STRENGTH_LEVELS
+    });
+  }
 })();
