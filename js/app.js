@@ -1,15 +1,24 @@
 (function () {
   'use strict';
 
-  // ── Character Sets ──────────────────────────────────────────
+  // ── Character Sets & Standards ──────────────────────────────
+  const DEFAULT_SYMBOLS = '!@#$%^&*()-_=+[]{}|;:,.<>?';
   const CHARS = {
     upper:   'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
     lower:   'abcdefghijklmnopqrstuvwxyz',
     nums:    '0123456789',
-    symbols: '!@#$%^&*()-_=+[]{}|;:,.<>?'
+    symbols: DEFAULT_SYMBOLS
   };
 
-  const AMBIGUOUS = /[l1IO0oQS5Z2]/g;
+  const AMBIGUOUS_CHARS = new Set(['l','1','I','O','0','o','Q','S','5','Z','2']);
+  const ALLOWED_THEMES = Object.freeze(['violet', 'emerald', 'sapphire', 'cyberpunk', 'light']);
+  const ALLOWED_SEPARATORS = Object.freeze(['hyphen', 'space', 'period', 'underscore']);
+  const SEP_MAP = Object.freeze({
+    hyphen: '-',
+    space: ' ',
+    period: '.',
+    underscore: '_'
+  });
 
   // ── CSPRNG Helpers ──────────────────────────────────────────
   function secureRandom(max) {
@@ -38,14 +47,33 @@
     }
   }
 
+  function debounce(fn, delay) {
+    let timer = null;
+    return function (...args) {
+      clearTimeout(timer);
+      timer = setTimeout(() => fn.apply(this, args), delay);
+    };
+  }
+
   // ── Password Logic ──────────────────────────────────────────
-  function getActiveCharsets(toggleEls, excludeAmbiguous) {
-    const keys = ['upper','lower','nums','symbols'];
+  function filterAmbiguous(str) {
+    let res = '';
+    for (let i = 0; i < str.length; i++) {
+      if (!AMBIGUOUS_CHARS.has(str[i])) res += str[i];
+    }
+    return res;
+  }
+
+  function getActiveCharsets(toggleEls, excludeAmbiguous, customSymbols) {
+    const keys = ['upper', 'lower', 'nums', 'symbols'];
     return toggleEls.map((el, i) => {
       if (!el.classList.contains('active')) return null;
-      let set = CHARS[keys[i]];
+      let set = (keys[i] === 'symbols')
+        ? (customSymbols && customSymbols.trim() ? customSymbols : CHARS.symbols)
+        : CHARS[keys[i]];
+
       if (excludeAmbiguous) {
-        set = set.replace(AMBIGUOUS, '');
+        set = filterAmbiguous(set);
       }
       return set;
     }).filter(Boolean);
@@ -80,6 +108,13 @@
     return words.join(separator);
   }
 
+  // ── PIN Logic ───────────────────────────────────────────────
+  function generatePIN(len) {
+    if (len <= 0) return '';
+    const digits = CHARS.nums;
+    return Array.from({ length: len }, () => digits[secureRandom(digits.length)]).join('');
+  }
+
   // ── Entropy & Crack Time Calculations ──────────────────────
   function calcEntropyBits(mode, options) {
     if (mode === 'password') {
@@ -87,17 +122,21 @@
       const poolSize = buildCharset(activeSets).length;
       if (poolSize === 0 || len <= 0) return 0;
       return Math.floor(len * Math.log2(poolSize));
-    } else {
+    } else if (mode === 'passphrase') {
       const { wordCount, includeNumber } = options;
       const poolSize = (window.EFF_WORDS || []).length || 1000;
       let bits = wordCount * Math.log2(poolSize);
       if (includeNumber) bits += Math.log2(100);
       return Math.floor(bits);
+    } else {
+      // PIN mode: pool of 10 digits
+      const { len } = options;
+      if (len <= 0) return 0;
+      return Math.floor(len * Math.log2(10));
     }
   }
 
   function estimateCrackTime(bits) {
-    // Assume 100 Billion (10^11) guesses per second (modern GPU cluster)
     if (bits <= 0) return 'Instant';
     const combinations = Math.pow(2, bits);
     const seconds = combinations / 1e11;
@@ -112,6 +151,31 @@
     return `${(seconds / (31536000 * 1e6)).toFixed(1)}M years`;
   }
 
+  function getStrengthGuidance(mode, bits, options = {}) {
+    if (mode === 'pin') {
+      const len = options.len || 6;
+      if (len < 6) return { status: 'alert', icon: '⚠️', text: 'Short PIN (10,000 combinations). Enable rate-limiting on devices.' };
+      if (len >= 8) return { status: 'good', icon: '🛡️', text: 'High security PIN with over 100 million combinations.' };
+      return { status: 'warn', icon: '💡', text: 'Standard 6-digit PIN. Good balance for screen locks & cards.' };
+    }
+
+    if (mode === 'passphrase') {
+      const wc = options.wordCount || 4;
+      if (wc < 4) return { status: 'warn', icon: '💡', text: 'Tip: 4 or more words provide high resistance to dictionary attacks.' };
+      if (wc >= 6) return { status: 'good', icon: '🔒', text: 'Massive entropy passphrase! Highly memorable and virtually uncrackable.' };
+      return { status: 'good', icon: '🛡️', text: 'Strong passphrase. Easy to type, hard to crack.' };
+    }
+
+    // Password mode
+    const len = options.len || 16;
+    if (len < 8) return { status: 'alert', icon: '⚠️', text: 'Extremely short! Use 12–16+ characters for secure accounts.' };
+    if (!options.hasSymbols) return { status: 'warn', icon: '💡', text: 'Tip: Enabling symbols substantially increases brute-force complexity.' };
+    if (bits < 40) return { status: 'alert', icon: '⚠️', text: 'Weak password. Increase length and enable more character sets.' };
+    if (bits < 60) return { status: 'warn', icon: '💡', text: 'Fair password. Suitable for basic accounts, but 16+ chars recommended.' };
+    if (bits >= 80) return { status: 'good', icon: '🔒', text: 'Excellent! Highly resistant to offline GPU cluster attacks.' };
+    return { status: 'good', icon: '🛡️', text: 'Strong password with solid entropy.' };
+  }
+
   const STRENGTH_LEVELS = [
     { label: 'Weak',        color: 'var(--weak)',   segs: 1 },
     { label: 'Fair',        color: 'var(--fair)',   segs: 2 },
@@ -120,93 +184,173 @@
   ];
 
   // ── DOM References ──────────────────────────────────────────
-  const tabPassword    = document.getElementById('tabPassword');
-  const tabPassphrase  = document.getElementById('tabPassphrase');
-  const passwordOpts   = document.getElementById('passwordOptions');
-  const passphraseOpts = document.getElementById('passphraseOptions');
-  const sliderLabel    = document.getElementById('sliderLabel');
+  const tabPassword       = document.getElementById('tabPassword');
+  const tabPassphrase     = document.getElementById('tabPassphrase');
+  const tabPin            = document.getElementById('tabPin');
+  const passwordOpts      = document.getElementById('passwordOptions');
+  const passphraseOpts    = document.getElementById('passphraseOptions');
+  const pinOpts           = document.getElementById('pinOptions');
+  const sliderLabel       = document.getElementById('sliderLabel');
 
-  const slider         = document.getElementById('lengthSlider');
-  const lengthBox      = document.getElementById('lengthBox');
-  const passText       = document.getElementById('passwordText');
-  const copyBtn        = document.getElementById('copyBtn');
-  const copyIcon       = document.getElementById('copyIcon');
-  const genBtn         = document.getElementById('generateBtn');
-  const bulkBtn        = document.getElementById('bulkBtn');
-  const strengthEl     = document.getElementById('strengthText');
-  const segs           = [1,2,3,4].map(n => document.getElementById('seg'+n));
-  const entropyEl      = document.getElementById('entropyInfo');
-  const crackTimeEl    = document.getElementById('crackTimeInfo');
-  const histWrap       = document.getElementById('historyWrap');
-  const histList       = document.getElementById('historyList');
-  const clearHistBtn   = document.getElementById('clearHistBtn');
-  const toastEl        = document.getElementById('toast');
-  const trackEl        = document.querySelector('.strength-track');
+  const slider            = document.getElementById('lengthSlider');
+  const lengthBox         = document.getElementById('lengthBox');
+  const passBox           = document.getElementById('passBox');
+  const passText          = document.getElementById('passwordText');
+  const copyBtn           = document.getElementById('copyBtn');
+  const copyIcon          = document.getElementById('copyIcon');
+  const qrBtn             = document.getElementById('qrBtn');
+  const genBtn            = document.getElementById('generateBtn');
+  const bulkBtn           = document.getElementById('bulkBtn');
+  const strengthEl        = document.getElementById('strengthText');
+  const segs              = [1,2,3,4].map(n => document.getElementById('seg'+n));
+  const entropyEl         = document.getElementById('entropyInfo');
+  const crackTimeEl       = document.getElementById('crackTimeInfo');
+  const strengthGuidanceEl= document.getElementById('strengthGuidance');
+  const histWrap          = document.getElementById('historyWrap');
+  const histList          = document.getElementById('historyList');
+  const clearHistBtn      = document.getElementById('clearHistBtn');
+  const toastEl           = document.getElementById('toast');
+  const trackEl           = document.querySelector('.strength-track');
 
-  // Toggles
-  const toggleIds   = ['tog-upper','tog-lower','tog-nums','tog-sym'];
-  const toggleEls   = toggleIds.map(id => document.getElementById(id));
-  const togAmbiguous= document.getElementById('tog-ambiguous');
+  // Password Options
+  const toggleIds         = ['tog-upper','tog-lower','tog-nums','tog-sym'];
+  const toggleEls         = toggleIds.map(id => document.getElementById(id));
+  const togAmbiguous      = document.getElementById('tog-ambiguous');
+  const customSymbolsInput= document.getElementById('customSymbolsInput');
+  const resetSymbolsBtn   = document.getElementById('resetSymbolsBtn');
 
-  // Passphrase selects
-  const selectSeparator = document.getElementById('selectSeparator');
-  const togCapitalize   = document.getElementById('tog-capitalize');
-  const togIncludeNum   = document.getElementById('tog-passnum');
+  // Passphrase Options
+  const selectSeparator   = document.getElementById('selectSeparator');
+  const togCapitalize     = document.getElementById('tog-capitalize');
+  const togIncludeNum     = document.getElementById('tog-passnum');
 
   // Bulk Modal
-  const bulkModal       = document.getElementById('bulkModal');
-  const closeBulkBtn    = document.getElementById('closeBulkModal');
-  const bulkCountSelect = document.getElementById('bulkCount');
-  const bulkTextarea    = document.getElementById('bulkTextarea');
-  const copyBulkBtn     = document.getElementById('copyBulkBtn');
-  const downloadBulkBtn = document.getElementById('downloadBulkBtn');
+  const bulkModal         = document.getElementById('bulkModal');
+  const bulkTitle         = document.getElementById('bulkTitle');
+  const closeBulkBtn      = document.getElementById('closeBulkModal');
+  const bulkCountSelect   = document.getElementById('bulkCount');
+  const bulkTextarea      = document.getElementById('bulkTextarea');
+  const copyBulkBtn       = document.getElementById('copyBulkBtn');
+  const downloadBulkBtn   = document.getElementById('downloadBulkBtn');
+
+  // QR Modal
+  const qrModal           = document.getElementById('qrModal');
+  const closeQrBtn        = document.getElementById('closeQrModal');
+  const doneQrBtn         = document.getElementById('doneQrBtn');
+  const qrContainer       = document.getElementById('qrContainer');
 
   // State
-  let currentMode = 'password'; // 'password' or 'passphrase'
+  let currentMode = 'password'; // 'password', 'passphrase', or 'pin'
   const history = [];
   let toastTimer = null;
   let clipboardWipeTimer = null;
   let currentCopiedText = null;
+  let lastActiveModalTrigger = null;
 
   // ── Mode Switcher ───────────────────────────────────────────
-  function setMode(mode) {
+  function setMode(mode, skipSave = false) {
     currentMode = mode;
+
+    tabPassword.classList.toggle('active', mode === 'password');
+    tabPassword.setAttribute('aria-selected', (mode === 'password').toString());
+
+    tabPassphrase.classList.toggle('active', mode === 'passphrase');
+    tabPassphrase.setAttribute('aria-selected', (mode === 'passphrase').toString());
+
+    tabPin.classList.toggle('active', mode === 'pin');
+    tabPin.setAttribute('aria-selected', (mode === 'pin').toString());
+
+    passwordOpts.hidden   = (mode !== 'password');
+    passphraseOpts.hidden = (mode !== 'passphrase');
+    pinOpts.hidden        = (mode !== 'pin');
+
     if (mode === 'password') {
-      tabPassword.classList.add('active');
-      tabPassphrase.classList.remove('active');
-      passwordOpts.hidden = false;
-      passphraseOpts.hidden = true;
       sliderLabel.textContent = 'Password Length';
-      slider.min = 4; slider.max = 128; slider.value = 16;
-      lengthBox.min = 4; lengthBox.max = 128; lengthBox.value = 16;
-    } else {
-      tabPassphrase.classList.add('active');
-      tabPassword.classList.remove('active');
-      passwordOpts.hidden = true;
-      passphraseOpts.hidden = false;
+      slider.min = 4; slider.max = 128;
+      const val = Math.min(128, Math.max(4, parseInt(lengthBox.value, 10) || 16));
+      slider.value = val; lengthBox.value = val;
+    } else if (mode === 'passphrase') {
       sliderLabel.textContent = 'Word Count';
-      slider.min = 3; slider.max = 10; slider.value = 4;
-      lengthBox.min = 3; lengthBox.max = 10; lengthBox.value = 4;
+      slider.min = 3; slider.max = 10;
+      const val = Math.min(10, Math.max(3, parseInt(lengthBox.value, 10) || 4));
+      slider.value = val; lengthBox.value = val;
+    } else {
+      sliderLabel.textContent = 'PIN Digits';
+      slider.min = 4; slider.max = 16;
+      const val = Math.min(16, Math.max(4, parseInt(lengthBox.value, 10) || 6));
+      slider.value = val; lengthBox.value = val;
     }
+
+    if (!skipSave) saveSettings();
     generate();
   }
 
-  // ── Allowed values for validated inputs ────────────────────
-  const ALLOWED_THEMES = Object.freeze(['violet', 'emerald', 'sapphire', 'cyberpunk']);
-  const ALLOWED_SEPARATORS = Object.freeze(['hyphen', 'space', 'period', 'underscore']);
+  // ── Settings Persistence ────────────────────────────────────
+  function saveSettings() {
+    try {
+      const prefs = {
+        mode: currentMode,
+        length: parseInt(lengthBox.value, 10) || 16,
+        toggles: {
+          upper: toggleEls[0]?.classList.contains('active'),
+          lower: toggleEls[1]?.classList.contains('active'),
+          nums: toggleEls[2]?.classList.contains('active'),
+          sym: toggleEls[3]?.classList.contains('active'),
+          ambiguous: togAmbiguous?.classList.contains('active'),
+          capitalize: togCapitalize?.classList.contains('active'),
+          passnum: togIncludeNum?.classList.contains('active')
+        },
+        separator: selectSeparator?.value || 'hyphen',
+        customSymbols: customSymbolsInput?.value || DEFAULT_SYMBOLS
+      };
+      localStorage.setItem('passgen_prefs', JSON.stringify(prefs));
+    } catch (_) {}
+  }
+
+  function loadSettings() {
+    try {
+      const raw = localStorage.getItem('passgen_prefs');
+      if (!raw) return;
+      const prefs = JSON.parse(raw);
+
+      if (prefs.toggles) {
+        if (typeof prefs.toggles.upper === 'boolean') toggleEls[0]?.classList.toggle('active', prefs.toggles.upper);
+        if (typeof prefs.toggles.lower === 'boolean') toggleEls[1]?.classList.toggle('active', prefs.toggles.lower);
+        if (typeof prefs.toggles.nums === 'boolean') toggleEls[2]?.classList.toggle('active', prefs.toggles.nums);
+        if (typeof prefs.toggles.sym === 'boolean') toggleEls[3]?.classList.toggle('active', prefs.toggles.sym);
+        if (typeof prefs.toggles.ambiguous === 'boolean') togAmbiguous?.classList.toggle('active', prefs.toggles.ambiguous);
+        if (typeof prefs.toggles.capitalize === 'boolean') togCapitalize?.classList.toggle('active', prefs.toggles.capitalize);
+        if (typeof prefs.toggles.passnum === 'boolean') togIncludeNum?.classList.toggle('active', prefs.toggles.passnum);
+      }
+
+      if (prefs.separator && ALLOWED_SEPARATORS.includes(prefs.separator)) {
+        selectSeparator.value = prefs.separator;
+      }
+
+      if (prefs.customSymbols && typeof prefs.customSymbols === 'string') {
+        customSymbolsInput.value = prefs.customSymbols;
+      }
+
+      if (prefs.mode && ['password', 'passphrase', 'pin'].includes(prefs.mode)) {
+        if (prefs.length) lengthBox.value = prefs.length;
+        setMode(prefs.mode, true);
+      }
+    } catch (_) {}
+  }
 
   // ── Generator Dispatch ──────────────────────────────────────
   function generate() {
     triggerHaptic();
     let password = '';
     let bits = 0;
+    let guidanceInfo = {};
 
     if (currentMode === 'password') {
-      // PATCH #6: Clamp length to strict bounds before use
       const rawLen = parseInt(lengthBox.value, 10);
       const len = (isNaN(rawLen) ? 16 : Math.min(128, Math.max(4, rawLen)));
       const excludeAmbiguous = togAmbiguous.classList.contains('active');
-      const activeSets = getActiveCharsets(toggleEls, excludeAmbiguous);
+      const customSym = customSymbolsInput.value || DEFAULT_SYMBOLS;
+      const activeSets = getActiveCharsets(toggleEls, excludeAmbiguous, customSym);
 
       if (activeSets.length === 0) {
         showToast('Enable at least one character set', 'error');
@@ -215,24 +359,34 @@
       }
       password = generateStandardPassword(len, activeSets);
       bits = calcEntropyBits('password', { len, activeSets });
-    } else {
-      // PATCH #6: Clamp word count to strict bounds
+      guidanceInfo = getStrengthGuidance('password', bits, {
+        len,
+        hasSymbols: toggleEls[3]?.classList.contains('active')
+      });
+    } else if (currentMode === 'passphrase') {
       const rawCount = parseInt(lengthBox.value, 10);
       const wordCount = (isNaN(rawCount) ? 4 : Math.min(10, Math.max(3, rawCount)));
-      // PATCH #9: Allowlist separator value
       const rawSep = selectSeparator.value;
       const safeSep = ALLOWED_SEPARATORS.includes(rawSep) ? rawSep : 'hyphen';
-      const sepMap = { hyphen: '-', space: ' ', period: '.', underscore: '_' };
-      const separator = sepMap[safeSep];
+      const separator = SEP_MAP[safeSep];
       const capitalize = togCapitalize.classList.contains('active');
       const includeNumber = togIncludeNum.classList.contains('active');
 
       password = generatePassphrase(wordCount, separator, capitalize, includeNumber);
       bits = calcEntropyBits('passphrase', { wordCount, includeNumber });
+      guidanceInfo = getStrengthGuidance('passphrase', bits, { wordCount });
+    } else {
+      // PIN Mode
+      const rawLen = parseInt(lengthBox.value, 10);
+      const len = (isNaN(rawLen) ? 6 : Math.min(16, Math.max(4, rawLen)));
+
+      password = generatePIN(len);
+      bits = calcEntropyBits('pin', { len });
+      guidanceInfo = getStrengthGuidance('pin', bits, { len });
     }
 
     passText.textContent = password;
-    updateStrengthUI(bits);
+    updateStrengthUI(bits, guidanceInfo);
     addToHistory(password);
 
     // Rotate icon animation
@@ -243,7 +397,7 @@
     }
   }
 
-  function updateStrengthUI(bits) {
+  function updateStrengthUI(bits, guidance) {
     let level;
     if      (bits < 40) level = 0;
     else if (bits < 60) level = 1;
@@ -261,19 +415,40 @@
     trackEl.setAttribute('aria-valuenow', fill);
     entropyEl.textContent = `~${bits} bits entropy`;
     crackTimeEl.textContent = `Time to crack: ${estimateCrackTime(bits)}`;
+
+    if (guidance) {
+      strengthGuidanceEl.className = `strength-guidance ${guidance.status}`;
+      strengthGuidanceEl.innerHTML = '';
+      const iconSpan = document.createElement('span');
+      iconSpan.className = 'guidance-icon';
+      iconSpan.textContent = guidance.icon;
+      const textSpan = document.createElement('span');
+      textSpan.className = 'guidance-text';
+      textSpan.textContent = guidance.text;
+      strengthGuidanceEl.append(iconSpan, textSpan);
+    }
+  }
+
+  // ── Relative Time Formatter ─────────────────────────────────
+  function getRelativeTime(timestamp) {
+    const diff = Math.floor((Date.now() - timestamp) / 1000);
+    if (diff < 30) return 'Just now';
+    if (diff < 60) return `${diff}s ago`;
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    return `${Math.floor(diff / 3600)}h ago`;
   }
 
   // ── History Management ──────────────────────────────────────
   function addToHistory(pass) {
     if (!pass || (history[0] && history[0].text === pass)) return;
-    history.unshift({ text: pass, masked: true });
+    history.unshift({ text: pass, masked: true, timestamp: Date.now() });
     if (history.length > 5) history.pop();
     renderHistory();
   }
 
   function renderHistory() {
     histList.innerHTML = '';
-    history.forEach((item, i) => {
+    history.forEach((item) => {
       const li = document.createElement('li');
       li.className = 'hist-item';
 
@@ -281,10 +456,17 @@
       span.className = `hist-pass ${item.masked ? 'masked' : ''}`;
       span.textContent = item.masked ? '••••••••••••' : item.text;
 
+      const metaDiv = document.createElement('div');
+      metaDiv.className = 'hist-meta';
+
+      const timeSpan = document.createElement('span');
+      timeSpan.className = 'hist-time';
+      timeSpan.textContent = getRelativeTime(item.timestamp);
+      metaDiv.appendChild(timeSpan);
+
       const actions = document.createElement('div');
       actions.className = 'hist-actions';
 
-      // PATCH #1: Build SVG nodes with createElementNS instead of innerHTML to prevent XSS
       const toggleEyeBtn = document.createElement('button');
       toggleEyeBtn.className = 'hist-btn';
       toggleEyeBtn.title = item.masked ? 'Reveal' : 'Mask';
@@ -324,7 +506,8 @@
       copyHistBtn.addEventListener('click', () => copyText(item.text));
 
       actions.append(toggleEyeBtn, copyHistBtn);
-      li.append(span, actions);
+      metaDiv.appendChild(actions);
+      li.append(span, metaDiv);
       histList.appendChild(li);
     });
 
@@ -347,7 +530,7 @@
       startAutoWipe(text);
       showToast('Copied! Will auto-clear in 30s', 'success');
     } catch {
-      // PATCH #7: Secure fallback — hide from screen readers and guarantee cleanup
+      // Secure fallback
       const ta = document.createElement('textarea');
       ta.value = text;
       ta.setAttribute('aria-hidden', 'true');
@@ -361,7 +544,6 @@
         startAutoWipe(text);
         showToast('Copied! Will auto-clear in 30s', 'success');
       } finally {
-        // Guaranteed cleanup even if an exception occurs
         if (ta.parentNode) document.body.removeChild(ta);
       }
     }
@@ -377,13 +559,10 @@
           await navigator.clipboard.writeText('');
           showToast('Clipboard auto-cleared for security', 'info');
         }
-      } catch (_) {
-        // Ignored if permissions fail
-      }
+      } catch (_) {}
     }, 30000);
   }
 
-  // PATCH #2: Replace innerHTML icon updates with safe DOM methods
   function setSvgIcon(svgEl, nodes) {
     while (svgEl.firstChild) svgEl.removeChild(svgEl.firstChild);
     const NS = 'http://www.w3.org/2000/svg';
@@ -396,7 +575,7 @@
 
   function copyCurrentPassword() {
     const text = passText.textContent.trim();
-    if (!text) { showToast('Generate a password first', 'error'); return; }
+    if (!text) { showToast('Generate an output first', 'error'); return; }
 
     copyBtn.classList.add('copied');
     setSvgIcon(copyIcon, [{ tag: 'polyline', attrs: { points: '20 6 9 17 4 12' } }]);
@@ -418,18 +597,62 @@
     toastTimer = setTimeout(() => { toastEl.className = 'toast'; }, 3200);
   }
 
+  // ── Modal Focus Trap ────────────────────────────────────────
+  function trapFocus(modalEl, closeFn) {
+    const focusable = modalEl.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+
+    if (first) first.focus();
+
+    function handleKey(e) {
+      if (e.key === 'Escape') {
+        closeFn();
+        return;
+      }
+      if (e.key === 'Tab') {
+        if (e.shiftKey) {
+          if (document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else {
+          if (document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+      }
+    }
+
+    modalEl.addEventListener('keydown', handleKey);
+    return () => modalEl.removeEventListener('keydown', handleKey);
+  }
+
   // ── Bulk Modal ──────────────────────────────────────────────
+  let cleanupBulkFocus = null;
+
   function openBulkModal() {
+    lastActiveModalTrigger = bulkBtn;
+    const titles = {
+      password: 'Bulk Password Generator',
+      passphrase: 'Bulk Passphrase Generator',
+      pin: 'Bulk PIN Generator'
+    };
+    bulkTitle.textContent = titles[currentMode] || 'Bulk Generator';
     renderBulkPasswords();
     bulkModal.classList.add('open');
+    cleanupBulkFocus = trapFocus(bulkModal, closeBulkModal);
   }
+
   function closeBulkModal() {
     bulkModal.classList.remove('open');
+    if (cleanupBulkFocus) cleanupBulkFocus();
+    if (lastActiveModalTrigger) lastActiveModalTrigger.focus();
   }
 
   function renderBulkPasswords() {
     const rawCount = parseInt(bulkCountSelect.value, 10);
-    // PATCH #6: Clamp bulk count to prevent performance DoS
     const count = (isNaN(rawCount) ? 10 : Math.min(50, Math.max(1, rawCount)));
     const items = [];
 
@@ -438,19 +661,22 @@
         const rawLen = parseInt(lengthBox.value, 10);
         const len = (isNaN(rawLen) ? 16 : Math.min(128, Math.max(4, rawLen)));
         const excludeAmbiguous = togAmbiguous.classList.contains('active');
-        const activeSets = getActiveCharsets(toggleEls, excludeAmbiguous);
+        const customSym = customSymbolsInput.value || DEFAULT_SYMBOLS;
+        const activeSets = getActiveCharsets(toggleEls, excludeAmbiguous, customSym);
         items.push(generateStandardPassword(len, activeSets));
-      } else {
+      } else if (currentMode === 'passphrase') {
         const rawCount2 = parseInt(lengthBox.value, 10);
         const wordCount = (isNaN(rawCount2) ? 4 : Math.min(10, Math.max(3, rawCount2)));
-        // PATCH #9: Allowlist separator value
         const rawSep = selectSeparator.value;
         const safeSep = ALLOWED_SEPARATORS.includes(rawSep) ? rawSep : 'hyphen';
-        const sepMap = { hyphen: '-', space: ' ', period: '.', underscore: '_' };
-        const separator = sepMap[safeSep];
+        const separator = SEP_MAP[safeSep];
         const capitalize = togCapitalize.classList.contains('active');
         const includeNumber = togIncludeNum.classList.contains('active');
         items.push(generatePassphrase(wordCount, separator, capitalize, includeNumber));
+      } else {
+        const rawLen = parseInt(lengthBox.value, 10);
+        const len = (isNaN(rawLen) ? 6 : Math.min(16, Math.max(4, rawLen)));
+        items.push(generatePIN(len));
       }
     }
 
@@ -464,25 +690,57 @@
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    // PATCH #11: Use crypto random suffix instead of predictable timestamp
     const randHex = Array.from(crypto.getRandomValues(new Uint8Array(4)))
       .map(b => b.toString(16).padStart(2, '0')).join('');
-    a.download = `passwords_${randHex}.txt`;
+    a.download = `${currentMode}_${randHex}.txt`;
     a.click();
     URL.revokeObjectURL(url);
-    showToast('Downloaded passwords TXT', 'success');
+    showToast('Downloaded TXT file', 'success');
+  }
+
+  // ── QR Code Modal ───────────────────────────────────────────
+  let cleanupQrFocus = null;
+
+  function openQrModal() {
+    const text = passText.textContent.trim();
+    if (!text) {
+      showToast('Generate an output first', 'error');
+      return;
+    }
+    lastActiveModalTrigger = qrBtn;
+    if (window.QRCode && typeof window.QRCode.renderToElement === 'function') {
+      window.QRCode.renderToElement(qrContainer, text, {
+        fgColor: '#0a0a0f',
+        bgColor: '#ffffff',
+        margin: 2
+      });
+    }
+    qrModal.classList.add('open');
+    cleanupQrFocus = trapFocus(qrModal, closeQrModal);
+  }
+
+  function closeQrModal() {
+    qrModal.classList.remove('open');
+    if (cleanupQrFocus) cleanupQrFocus();
+    if (lastActiveModalTrigger) lastActiveModalTrigger.focus();
   }
 
   // ── Theme Switcher ──────────────────────────────────────────
   function initTheme() {
-    const saved = localStorage.getItem('passgen_theme') || 'violet';
-    // PATCH #5: Validate stored theme against allowlist before use
+    let saved = localStorage.getItem('passgen_theme');
+    if (!saved) {
+      // Auto detect prefers-color-scheme
+      if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+        saved = 'light';
+      } else {
+        saved = 'violet';
+      }
+    }
     const safeTheme = ALLOWED_THEMES.includes(saved) ? saved : 'violet';
     setTheme(safeTheme);
   }
 
   function setTheme(themeName) {
-    // PATCH #5: Strict allowlist — reject any value not in the approved list
     if (!ALLOWED_THEMES.includes(themeName)) return;
     if (themeName === 'violet') {
       document.documentElement.removeAttribute('data-theme');
@@ -499,19 +757,34 @@
   // ── Event Listeners Setup ───────────────────────────────────
   tabPassword.addEventListener('click', () => setMode('password'));
   tabPassphrase.addEventListener('click', () => setMode('passphrase'));
+  tabPin.addEventListener('click', () => setMode('pin'));
+
+  const debouncedGenerate = debounce(() => {
+    saveSettings();
+    generate();
+  }, 150);
 
   slider.addEventListener('input', () => {
     lengthBox.value = slider.value;
-    generate();
+    debouncedGenerate();
   });
+
   lengthBox.addEventListener('input', () => {
     const v = parseInt(lengthBox.value, 10);
-    const max = currentMode === 'password' ? 128 : 10;
-    const min = currentMode === 'password' ? 4 : 3;
+    const max = currentMode === 'password' ? 128 : (currentMode === 'pin' ? 16 : 10);
+    const min = currentMode === 'password' ? 4 : (currentMode === 'pin' ? 4 : 3);
     if (!isNaN(v) && v >= min && v <= max) {
       slider.value = v;
-      generate();
+      debouncedGenerate();
     }
+  });
+
+  // Custom Symbols Input & Reset
+  customSymbolsInput.addEventListener('input', debouncedGenerate);
+  resetSymbolsBtn.addEventListener('click', () => {
+    customSymbolsInput.value = DEFAULT_SYMBOLS;
+    saveSettings();
+    generate();
   });
 
   // Toggles
@@ -520,44 +793,68 @@
     function toggle() {
       const active = el.classList.toggle('active');
       el.setAttribute('aria-checked', active.toString());
+      saveSettings();
       generate();
     }
     el.addEventListener('click', toggle);
-    el.addEventListener('keydown', e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); toggle(); } });
+    el.addEventListener('keydown', e => {
+      if (e.key === ' ' || e.key === 'Enter') {
+        e.preventDefault();
+        toggle();
+      }
+    });
   });
 
-  selectSeparator.addEventListener('change', generate);
+  selectSeparator.addEventListener('change', () => {
+    saveSettings();
+    generate();
+  });
+
+  // One-click regeneration on clicking the password output box
+  passBox.addEventListener('click', (e) => {
+    if (e.target.closest('.pass-actions')) return; // ignore clicks on copy or QR button
+    generate();
+  });
+  passBox.addEventListener('keydown', (e) => {
+    if (e.key === ' ' || e.key === 'Enter') {
+      if (!e.target.closest('.pass-actions')) {
+        e.preventDefault();
+        generate();
+      }
+    }
+  });
 
   genBtn.addEventListener('click', generate);
   copyBtn.addEventListener('click', copyCurrentPassword);
+  qrBtn.addEventListener('click', openQrModal);
   clearHistBtn.addEventListener('click', clearHistory);
 
+  // Bulk modal events
   bulkBtn.addEventListener('click', openBulkModal);
   closeBulkBtn.addEventListener('click', closeBulkModal);
+  bulkModal.addEventListener('click', e => { if (e.target === bulkModal) closeBulkModal(); });
   bulkCountSelect.addEventListener('change', renderBulkPasswords);
   copyBulkBtn.addEventListener('click', () => copyText(bulkTextarea.value));
   downloadBulkBtn.addEventListener('click', downloadBulkTxt);
 
-  // PATCH #12: Close modal on Escape key and outside-click for keyboard accessibility
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && bulkModal.classList.contains('open')) closeBulkModal();
-  });
-  bulkModal.addEventListener('click', e => {
-    if (e.target === bulkModal) closeBulkModal();
-  });
+  // QR modal events
+  closeQrBtn.addEventListener('click', closeQrModal);
+  doneQrBtn.addEventListener('click', closeQrModal);
+  qrModal.addEventListener('click', e => { if (e.target === qrModal) closeQrModal(); });
 
-  // Themes — PATCH #5: Allowlist validated inside setTheme()
+  // Themes
   document.querySelectorAll('.theme-dot').forEach(dot => {
     dot.addEventListener('click', () => {
       const theme = dot.getAttribute('data-set-theme');
-      // Only call setTheme with values from the DOM that are in the allowlist
       if (ALLOWED_THEMES.includes(theme)) setTheme(theme);
     });
   });
 
-  // Keyboard shortcut Ctrl/Cmd + Enter
+  // Global Keyboard shortcuts
   document.addEventListener('keydown', e => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') generate();
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      generate();
+    }
   });
 
   // Service Worker Registration
@@ -567,12 +864,15 @@
     });
   }
 
-  // Initialize
+  // Periodic Relative Time refresh for history
+  setInterval(renderHistory, 30000);
+
+  // Initialization
   initTheme();
+  loadSettings();
   generate();
 
-  // PATCH #4: Freeze the PassGen export to prevent external mutation of core functions.
-  // Only expose in non-production contexts (when test runner flag is set).
+  // Test Export
   if (typeof window.__PASSGEN_TEST__ !== 'undefined' && window.__PASSGEN_TEST__ === true) {
     window.PassGen = Object.freeze({
       secureRandom,
@@ -581,10 +881,16 @@
       buildCharset,
       generateStandardPassword,
       generatePassphrase,
+      generatePIN,
       calcEntropyBits,
       estimateCrackTime,
+      getStrengthGuidance,
+      getRelativeTime,
       CHARS,
-      AMBIGUOUS,
+      DEFAULT_SYMBOLS,
+      ALLOWED_THEMES,
+      ALLOWED_SEPARATORS,
+      SEP_MAP,
       STRENGTH_LEVELS
     });
   }

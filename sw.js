@@ -1,7 +1,5 @@
-// PATCH #10: Cache-Only strategy — never dynamically cache network responses.
-// All assets are pre-cached at install time. Dynamic network caching is a risk
-// as a MITM could inject a poisoned response that gets permanently cached.
-const CACHE_NAME = 'passgen-v3';
+// Cache-Only strategy — all assets are pre-cached at install time.
+const CACHE_NAME = 'passgen-v4';
 const ASSETS = [
   './',
   './index.html',
@@ -9,6 +7,7 @@ const ASSETS = [
   './css/fonts.css',
   './fonts/Inter.woff2',
   './fonts/JetBrainsMono.woff2',
+  './js/qrcode.js',
   './js/words.js',
   './js/app.js',
   './icon.svg',
@@ -36,12 +35,9 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Cache-Only: serve from cache only. If not cached, respond with a
-  // minimal offline fallback rather than fetching from the network.
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) return cachedResponse;
-      // Asset not in cache — return a safe 503 offline response
       return new Response('Offline — asset not cached', {
         status: 503,
         statusText: 'Service Unavailable',

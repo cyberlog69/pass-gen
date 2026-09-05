@@ -40,6 +40,62 @@
   --accent-glow: rgba(217,70,239,0.35);
 }
 
+[data-theme="light"] {
+  --bg:          #f8fafc;
+  --surface:     #ffffff;
+  --surface2:    #f1f5f9;
+  --border:      #e2e8f0;
+  --accent:      #6d28d9;
+  --accent2:     #8b5cf6;
+  --accent-glow: rgba(109,40,217,0.15);
+  --text:        #0f172a;
+  --muted:       #64748b;
+  --weak:        #dc2626;
+  --fair:        #ea580c;
+  --strong:      #ca8a04;
+  --great:       #16a34a;
+}
+
+[data-theme="light"] body {
+  background-image:
+    radial-gradient(ellipse 80% 60% at 50% -20%, var(--accent-glow) 0%, transparent 70%),
+    radial-gradient(ellipse 60% 40% at 80% 110%, rgba(0,0,0,0.02) 0%, transparent 60%);
+}
+
+[data-theme="light"] .header h1 {
+  background: linear-gradient(135deg, #0f172a 30%, var(--accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+[data-theme="light"] .card {
+  box-shadow: 0 10px 30px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);
+}
+
+[data-theme="light"] .pass-box {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+[data-theme="light"] .modal-card {
+  background: #ffffff;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.15);
+}
+
+[data-theme="light"] .bulk-textarea {
+  background: #f8fafc;
+  color: #0f172a;
+  border-color: #cbd5e1;
+}
+
+[data-theme="light"] .toggle-switch {
+  background: #cbd5e1;
+}
+
+[data-theme="light"] .toggle-item:hover {
+  background: #e2e8f0;
+}
+
 html { scroll-behavior: smooth; }
 
 body {
@@ -55,7 +111,21 @@ body {
   align-items: center;
   justify-content: center;
   padding: 24px 16px 40px;
-  transition: background var(--transition);
+  transition: background var(--transition), color var(--transition);
+}
+
+.noscript-warning {
+  background: #dc2626;
+  color: white;
+  text-align: center;
+  padding: 12px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  width: 100%;
+  max-width: 440px;
+  box-shadow: 0 4px 14px rgba(220,38,38,0.3);
 }
 
 .header {
@@ -82,7 +152,7 @@ body {
   letter-spacing: .08em;
   text-transform: uppercase;
   color: var(--accent2);
-  background: rgba(255,255,255,0.05);
+  background: var(--surface2);
   border: 1px solid var(--border);
   padding: 4px 12px;
   border-radius: 999px;
@@ -106,17 +176,18 @@ body {
   transition: transform var(--transition), border-color var(--transition);
 }
 .theme-dot:hover { transform: scale(1.2); }
-.theme-dot.active { border-color: white; transform: scale(1.1); }
+.theme-dot.active { border-color: var(--text); transform: scale(1.1); }
 .theme-dot[data-set-theme="violet"] { background: #7c3aed; }
 .theme-dot[data-set-theme="emerald"] { background: #059669; }
 .theme-dot[data-set-theme="sapphire"] { background: #2563eb; }
 .theme-dot[data-set-theme="cyberpunk"] { background: #d946ef; }
+.theme-dot[data-set-theme="light"] { background: #f8fafc; border: 1px solid #94a3b8; }
 
 .header h1 {
   font-size: clamp(22px, 5vw, 28px);
   font-weight: 700;
   letter-spacing: -0.02em;
-  background: linear-gradient(135deg, #f1f1f5 30%, var(--accent2));
+  background: linear-gradient(135deg, var(--text) 30%, var(--accent2));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -142,10 +213,10 @@ body {
     0 0 80px var(--accent-glow);
 }
 
-/* ── Mode Switcher Tabs ───────────────────── */
+/* ── Mode Switcher Tabs (3 columns) ───────────────────── */
 .mode-tabs {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 6px;
   background: var(--surface2);
   padding: 4px;
@@ -154,8 +225,8 @@ body {
   margin-bottom: 20px;
 }
 .tab-btn {
-  padding: 8px 12px;
-  font-size: 13px;
+  padding: 8px 10px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--muted);
   background: transparent;
@@ -174,7 +245,7 @@ body {
   color: white;
   box-shadow: 0 2px 10px var(--accent-glow);
 }
-.tab-btn svg { width: 14px; height: 14px; }
+.tab-btn svg { width: 14px; height: 14px; flex-shrink: 0; }
 
 .label {
   font-size: 11px;
@@ -240,7 +311,7 @@ body {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 .toggle-item {
   display: flex;
@@ -254,12 +325,12 @@ body {
   transition: border-color var(--transition), background var(--transition);
   user-select: none;
 }
-.toggle-item:hover { border-color: rgba(255,255,255,0.2); background: rgba(255,255,255,0.09); }
-.toggle-item.active { border-color: var(--accent); background: rgba(255,255,255,0.06); }
-.toggle-item span { font-size: 13px; font-weight: 500; }
+.toggle-item:hover { border-color: rgba(124,58,237,0.3); }
+.toggle-item.active { border-color: var(--accent); background: rgba(124,58,237,0.08); }
+.toggle-item span { font-size: 12px; font-weight: 500; }
 .toggle-switch {
-  width: 34px;
-  height: 19px;
+  width: 32px;
+  height: 18px;
   background: #333;
   border-radius: 99px;
   position: relative;
@@ -271,17 +342,56 @@ body {
   content: '';
   position: absolute;
   top: 2px; left: 2px;
-  width: 15px; height: 15px;
+  width: 14px; height: 14px;
   background: white;
   border-radius: 50%;
   transition: transform var(--transition);
   box-shadow: 0 1px 4px rgba(0,0,0,0.3);
 }
-.toggle-item.active .toggle-switch::after { transform: translateX(15px); }
+.toggle-item.active .toggle-switch::after { transform: translateX(14px); }
 
-/* Full width toggle item */
 .toggle-item.full-width {
   grid-column: 1 / -1;
+}
+
+/* Custom Symbols Input */
+.custom-symbols-wrap {
+  margin-bottom: 18px;
+}
+.custom-symbols-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.custom-symbols-input {
+  flex: 1;
+  padding: 8px 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  outline: none;
+  transition: border-color var(--transition);
+}
+.custom-symbols-input:focus {
+  border-color: var(--accent);
+}
+.btn-reset-sym {
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.btn-reset-sym:hover {
+  color: var(--text);
+  border-color: var(--accent2);
 }
 
 /* Passphrase Controls */
@@ -314,6 +424,11 @@ body {
 }
 .select-box:focus { border-color: var(--accent); }
 
+/* PIN Options */
+#pinOptions {
+  margin-bottom: 16px;
+}
+
 /* ── Password Output Box ──────────────────── */
 .pass-box {
   background: rgba(0,0,0,0.3);
@@ -326,8 +441,15 @@ body {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 14px;
-  transition: border-color var(--transition);
+  transition: border-color var(--transition), background var(--transition);
   position: relative;
+  cursor: pointer;
+}
+.pass-box:hover {
+  border-color: var(--accent2);
+}
+.pass-box:focus-visible {
+  outline: 2px solid var(--accent);
 }
 .pass-box:has(#passwordText:not(:empty)) { border-color: rgba(255,255,255,0.15); }
 #passwordText {
@@ -339,6 +461,7 @@ body {
   flex: 1;
   line-height: 1.5;
   min-height: 24px;
+  user-select: all;
 }
 #passwordText:empty::before {
   content: 'Click Generate…';
@@ -347,8 +470,15 @@ body {
   font-size: 14px;
 }
 
-.copy-btn {
+.pass-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   flex-shrink: 0;
+}
+
+.icon-action-btn,
+.copy-btn {
   width: 36px;
   height: 36px;
   display: flex;
@@ -361,12 +491,14 @@ body {
   color: var(--muted);
   transition: all var(--transition);
 }
-.copy-btn:hover { border-color: var(--accent2); color: var(--accent2); background: rgba(255,255,255,0.08); }
+.icon-action-btn:hover,
+.copy-btn:hover { border-color: var(--accent2); color: var(--accent2); background: rgba(124,58,237,0.1); }
 .copy-btn.copied { border-color: var(--great); color: var(--great); background: rgba(34,197,94,0.1); }
+.icon-action-btn svg,
 .copy-btn svg { width: 16px; height: 16px; }
 
 /* ── Strength & Crack Time Indicator ────── */
-.strength-wrap { margin-bottom: 14px; }
+.strength-wrap { margin-bottom: 12px; }
 .strength-header {
   display: flex;
   justify-content: space-between;
@@ -397,13 +529,40 @@ body {
   justify-content: space-between;
   font-size: 11px;
   color: var(--muted);
-  margin-bottom: 18px;
+  margin-bottom: 10px;
   background: var(--surface2);
   padding: 8px 12px;
   border-radius: 8px;
   border: 1px solid var(--border);
 }
 #crackTimeInfo { font-weight: 600; color: var(--accent2); }
+
+/* Strength Guidance Box */
+.strength-guidance {
+  font-size: 11px;
+  line-height: 1.4;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all var(--transition);
+}
+.strength-guidance.good {
+  border-color: rgba(34, 197, 94, 0.3);
+  color: var(--great);
+}
+.strength-guidance.warn {
+  border-color: rgba(234, 179, 8, 0.3);
+  color: var(--strong);
+}
+.strength-guidance.alert {
+  border-color: rgba(239, 68, 68, 0.3);
+  color: var(--weak);
+}
 
 /* ── Action Buttons ───────────────────────── */
 .actions-group {
@@ -435,7 +594,7 @@ body {
 .btn-generate:hover svg { transform: rotate(180deg); }
 
 .btn-secondary {
-  padding: 13px;
+  padding: 13px 18px;
   background: var(--surface2);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -449,7 +608,7 @@ body {
   gap: 6px;
   transition: all var(--transition);
 }
-.btn-secondary:hover { border-color: var(--accent2); background: rgba(255,255,255,0.08); }
+.btn-secondary:hover { border-color: var(--accent2); background: rgba(124,58,237,0.08); }
 .btn-secondary svg { width: 16px; height: 16px; }
 
 /* ── History Section ──────────────────────── */
@@ -479,6 +638,17 @@ body {
   flex: 1;
 }
 .hist-pass.masked { letter-spacing: 2px; }
+
+.hist-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.hist-time {
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+}
 
 .hist-actions {
   display: flex;
@@ -559,6 +729,7 @@ body {
   top: 0; left: 0; right: 0; bottom: 0;
   background: rgba(0,0,0,0.7);
   backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -597,9 +768,10 @@ body {
   padding: 4px;
 }
 .modal-close:hover { color: var(--text); }
+
 .bulk-textarea {
   width: 100%;
-  height: 220px;
+  height: 200px;
   background: rgba(0,0,0,0.5);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -615,6 +787,49 @@ body {
   display: flex;
   gap: 10px;
   justify-content: flex-end;
+}
+
+/* QR Modal Specifics */
+.qr-container {
+  width: 200px;
+  height: 200px;
+  margin: 0 auto 16px;
+  background: white;
+  padding: 10px;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.qr-container svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.qr-caption {
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+  margin-bottom: 18px;
+}
+
+/* ── Reduced Motion ───────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .btn-generate svg,
+  .btn-generate:hover svg {
+    transform: none !important;
+  }
+  .hist-item {
+    animation: none !important;
+  }
 }
 
 @media (max-width: 480px) {
