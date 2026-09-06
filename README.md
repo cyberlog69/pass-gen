@@ -16,7 +16,9 @@ A **100% offline**, cryptographically secure Password, Passphrase & PIN Generato
 
 You can directly install the pre-compiled, optimized release APK on your Android device (Android 8.0 / API 26 through Android 15+):
 
-- **Direct Download**: [`release/PassGen-v1.1.0.apk`](release/PassGen-v1.1.0.apk)
+- **GitHub Release**: [PassGen v1.1.0 Release](https://github.com/cyberlog69/pass-gen/releases/tag/v1.1.0)
+- **Direct Download (Local)**: [`release/PassGen-v1.1.0.apk`](release/PassGen-v1.1.0.apk)
+- **Direct Download (GitHub)**: [Download PassGen-v1.1.0.apk](https://github.com/cyberlog69/pass-gen/releases/download/v1.1.0/PassGen-v1.1.0.apk)
 - **File Size**: ~1.14 MB (Shrunk with R8 optimization and resource shrinking)
 - **Version**: `1.1.0` (versionCode `2`)
 
