@@ -1,0 +1,13 @@
+# IDE & Editors
+.idea/
+.vscode/
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build artifacts in subdirectories
+android/build/
+android/app/build/
+android/.gradle/
