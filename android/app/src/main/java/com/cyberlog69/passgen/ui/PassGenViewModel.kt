@@ -38,6 +38,7 @@ data class PassGenUiState(
     val capitalizeWords: Boolean = true,
     val appendNumber: Boolean = false,
     val theme: ThemePreset = ThemePreset.VIOLET,
+    val modeResults: Map<GeneratorMode, GenerationResult> = emptyMap(),
     val currentResult: GenerationResult? = null,
     val history: List<HistoryItem> = emptyList(),
     val isQrDialogVisible: Boolean = false,
@@ -191,6 +192,7 @@ class PassGenViewModel(application: Application) : AndroidViewModel(application)
             strengthLevel = strength
         )
 
+        val newModeResults = s.modeResults + (s.mode to result)
         val updatedHistory = if (s.history.firstOrNull()?.text != text) {
             (listOf(HistoryItem(text = text, isMasked = true)) + s.history).take(5)
         } else {
@@ -199,6 +201,7 @@ class PassGenViewModel(application: Application) : AndroidViewModel(application)
 
         _uiState.update {
             it.copy(
+                modeResults = newModeResults,
                 currentResult = result,
                 history = updatedHistory
             )
@@ -206,87 +209,83 @@ class PassGenViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun setMode(mode: GeneratorMode) {
-        _uiState.update { it.copy(mode = mode) }
+        _uiState.update { state ->
+            val existing = state.modeResults[mode]
+            state.copy(
+                mode = mode,
+                currentResult = existing ?: state.currentResult
+            )
+        }
         saveSettings()
-        generate()
+        // If this mode does not have a generated result yet, generate the initial one
+        if (!_uiState.value.modeResults.containsKey(mode)) {
+            generate()
+        }
     }
 
     fun setPasswordLength(len: Int) {
         _uiState.update { it.copy(passwordLength = len.coerceIn(4, 128)) }
         saveSettings()
-        generate()
     }
 
     fun setPassphraseWordCount(count: Int) {
         _uiState.update { it.copy(passphraseWordCount = count.coerceIn(3, 10)) }
         saveSettings()
-        generate()
     }
 
     fun setPinLength(len: Int) {
         _uiState.update { it.copy(pinLength = len.coerceIn(4, 16)) }
         saveSettings()
-        generate()
     }
 
     fun toggleUpper() {
         _uiState.update { it.copy(includeUpper = !it.includeUpper) }
         saveSettings()
-        generate()
     }
 
     fun toggleLower() {
         _uiState.update { it.copy(includeLower = !it.includeLower) }
         saveSettings()
-        generate()
     }
 
     fun toggleNumbers() {
         _uiState.update { it.copy(includeNumbers = !it.includeNumbers) }
         saveSettings()
-        generate()
     }
 
     fun toggleSymbols() {
         _uiState.update { it.copy(includeSymbols = !it.includeSymbols) }
         saveSettings()
-        generate()
     }
 
     fun toggleAmbiguous() {
         _uiState.update { it.copy(excludeAmbiguous = !it.excludeAmbiguous) }
         saveSettings()
-        generate()
     }
 
     fun setCustomSymbols(symbols: String) {
         _uiState.update { it.copy(customSymbols = symbols) }
         saveSettings()
-        generate()
     }
 
     fun resetCustomSymbols() {
         _uiState.update { it.copy(customSymbols = SecureRandomGenerator.DEFAULT_SYMBOLS) }
         saveSettings()
-        generate()
     }
 
     fun setSeparator(sep: Separator) {
         _uiState.update { it.copy(separator = sep) }
         saveSettings()
-        generate()
     }
 
     fun toggleCapitalize() {
         _uiState.update { it.copy(capitalizeWords = !it.capitalizeWords) }
         saveSettings()
-        generate()
     }
 
     fun toggleAppendNumber() {
         _uiState.update { it.copy(appendNumber = !it.appendNumber) }
         saveSettings()
-        generate()
     }
 
     fun setTheme(theme: ThemePreset) {

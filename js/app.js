@@ -69,7 +69,7 @@
     return toggleEls.map((el, i) => {
       if (!el.classList.contains('active')) return null;
       let set = (keys[i] === 'symbols')
-        ? (customSymbols && customSymbols.trim() ? customSymbols : CHARS.symbols)
+        ? (typeof customSymbols === 'string' && customSymbols.trim() ? customSymbols : CHARS.symbols)
         : CHARS[keys[i]];
 
       if (excludeAmbiguous) {
@@ -241,6 +241,16 @@
 
   // State
   let currentMode = 'password'; // 'password', 'passphrase', or 'pin'
+  const modeLengths = {
+    password: 16,
+    passphrase: 4,
+    pin: 6
+  };
+  const modeOutputs = {
+    password: null,
+    passphrase: null,
+    pin: null
+  };
   const history = [];
   let toastTimer = null;
   let clipboardWipeTimer = null;
@@ -267,22 +277,30 @@
     if (mode === 'password') {
       sliderLabel.textContent = 'Password Length';
       slider.min = 4; slider.max = 128;
-      const val = Math.min(128, Math.max(4, parseInt(lengthBox.value, 10) || 16));
+      const val = Math.min(128, Math.max(4, modeLengths.password || 16));
       slider.value = val; lengthBox.value = val;
     } else if (mode === 'passphrase') {
       sliderLabel.textContent = 'Word Count';
       slider.min = 3; slider.max = 10;
-      const val = Math.min(10, Math.max(3, parseInt(lengthBox.value, 10) || 4));
+      const val = Math.min(10, Math.max(3, modeLengths.passphrase || 4));
       slider.value = val; lengthBox.value = val;
     } else {
       sliderLabel.textContent = 'PIN Digits';
       slider.min = 4; slider.max = 16;
-      const val = Math.min(16, Math.max(4, parseInt(lengthBox.value, 10) || 6));
+      const val = Math.min(16, Math.max(4, modeLengths.pin || 6));
       slider.value = val; lengthBox.value = val;
     }
 
     if (!skipSave) saveSettings();
-    generate();
+
+    // Preserve generated output per mode without re-rolling or polluting history
+    if (modeOutputs[mode]) {
+      passText.textContent = modeOutputs[mode].password;
+      updateStrengthUI(modeOutputs[mode].bits, modeOutputs[mode].guidance);
+    } else {
+      // First visit to this mode: generate initial password
+      generate();
+    }
   }
 
   // ── Settings Persistence ────────────────────────────────────
@@ -291,6 +309,7 @@
       const prefs = {
         mode: currentMode,
         length: parseInt(lengthBox.value, 10) || 16,
+        lengths: modeLengths,
         toggles: {
           upper: toggleEls[0]?.classList.contains('active'),
           lower: toggleEls[1]?.classList.contains('active'),
@@ -331,9 +350,16 @@
         customSymbolsInput.value = prefs.customSymbols;
       }
 
+      if (prefs.lengths && typeof prefs.lengths === 'object') {
+        if (Number.isInteger(prefs.lengths.password)) modeLengths.password = Math.min(128, Math.max(4, prefs.lengths.password));
+        if (Number.isInteger(prefs.lengths.passphrase)) modeLengths.passphrase = Math.min(10, Math.max(3, prefs.lengths.passphrase));
+        if (Number.isInteger(prefs.lengths.pin)) modeLengths.pin = Math.min(16, Math.max(4, prefs.lengths.pin));
+      } else if (prefs.length) {
+        modeLengths.password = Math.min(128, Math.max(4, prefs.length));
+      }
+
       if (prefs.mode && ['password', 'passphrase', 'pin'].includes(prefs.mode)) {
-        if (prefs.length) lengthBox.value = prefs.length;
-        setMode(prefs.mode, true);
+        currentMode = prefs.mode;
       }
     } catch (_) {}
   }
@@ -348,6 +374,7 @@
     if (currentMode === 'password') {
       const rawLen = parseInt(lengthBox.value, 10);
       const len = (isNaN(rawLen) ? 16 : Math.min(128, Math.max(4, rawLen)));
+      modeLengths.password = len;
       const excludeAmbiguous = togAmbiguous.classList.contains('active');
       const customSym = customSymbolsInput.value || DEFAULT_SYMBOLS;
       const activeSets = getActiveCharsets(toggleEls, excludeAmbiguous, customSym);
@@ -366,6 +393,7 @@
     } else if (currentMode === 'passphrase') {
       const rawCount = parseInt(lengthBox.value, 10);
       const wordCount = (isNaN(rawCount) ? 4 : Math.min(10, Math.max(3, rawCount)));
+      modeLengths.passphrase = wordCount;
       const rawSep = selectSeparator.value;
       const safeSep = ALLOWED_SEPARATORS.includes(rawSep) ? rawSep : 'hyphen';
       const separator = SEP_MAP[safeSep];
@@ -379,11 +407,18 @@
       // PIN Mode
       const rawLen = parseInt(lengthBox.value, 10);
       const len = (isNaN(rawLen) ? 6 : Math.min(16, Math.max(4, rawLen)));
+      modeLengths.pin = len;
 
       password = generatePIN(len);
       bits = calcEntropyBits('pin', { len });
       guidanceInfo = getStrengthGuidance('pin', bits, { len });
     }
+
+    modeOutputs[currentMode] = {
+      password,
+      bits,
+      guidance: guidanceInfo
+    };
 
     passText.textContent = password;
     updateStrengthUI(bits, guidanceInfo);
@@ -759,14 +794,16 @@
   tabPassphrase.addEventListener('click', () => setMode('passphrase'));
   tabPin.addEventListener('click', () => setMode('pin'));
 
-  const debouncedGenerate = debounce(() => {
+  function updateLength(v) {
+    if (currentMode === 'password') modeLengths.password = v;
+    else if (currentMode === 'passphrase') modeLengths.passphrase = v;
+    else modeLengths.pin = v;
     saveSettings();
-    generate();
-  }, 150);
+  }
 
   slider.addEventListener('input', () => {
     lengthBox.value = slider.value;
-    debouncedGenerate();
+    updateLength(parseInt(slider.value, 10));
   });
 
   lengthBox.addEventListener('input', () => {
@@ -775,16 +812,17 @@
     const min = currentMode === 'password' ? 4 : (currentMode === 'pin' ? 4 : 3);
     if (!isNaN(v) && v >= min && v <= max) {
       slider.value = v;
-      debouncedGenerate();
+      updateLength(v);
     }
   });
 
   // Custom Symbols Input & Reset
-  customSymbolsInput.addEventListener('input', debouncedGenerate);
+  customSymbolsInput.addEventListener('input', () => {
+    saveSettings();
+  });
   resetSymbolsBtn.addEventListener('click', () => {
     customSymbolsInput.value = DEFAULT_SYMBOLS;
     saveSettings();
-    generate();
   });
 
   // Toggles
@@ -794,7 +832,6 @@
       const active = el.classList.toggle('active');
       el.setAttribute('aria-checked', active.toString());
       saveSettings();
-      generate();
     }
     el.addEventListener('click', toggle);
     el.addEventListener('keydown', e => {
@@ -807,7 +844,6 @@
 
   selectSeparator.addEventListener('change', () => {
     saveSettings();
-    generate();
   });
 
   // One-click regeneration on clicking the password output box
@@ -870,7 +906,7 @@
   // Initialization
   initTheme();
   loadSettings();
-  generate();
+  setMode(currentMode, true);
 
   // Test Export
   if (typeof window.__PASSGEN_TEST__ !== 'undefined' && window.__PASSGEN_TEST__ === true) {
