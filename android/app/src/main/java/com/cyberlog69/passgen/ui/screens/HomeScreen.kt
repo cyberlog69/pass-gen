@@ -64,6 +64,7 @@ import com.cyberlog69.passgen.ui.components.PassphraseControls
 import com.cyberlog69.passgen.ui.components.PinControls
 import com.cyberlog69.passgen.ui.components.QrCodeDialog
 import com.cyberlog69.passgen.ui.components.StrengthIndicator
+import com.cyberlog69.passgen.ui.components.VaultDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -128,9 +129,21 @@ fun HomeScreen(
                     }
                 },
                 actions = {
+                    IconButton(
+                        onClick = { viewModel.openVaultDialog() },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Security,
+                            contentDescription = "Encrypted Vault",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
                     // Theme picker dots
                     Row(
-                        modifier = Modifier.padding(end = 8.dp),
+                        modifier = Modifier.padding(start = 4.dp, end = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -182,7 +195,8 @@ fun HomeScreen(
                 onCopy = {
                     state.currentResult?.text?.let { viewModel.copyToClipboard(context, it) }
                 },
-                onShowQr = { viewModel.openQrDialog() }
+                onShowQr = { viewModel.openQrDialog() },
+                onSaveVault = { viewModel.saveCurrentToVault("") }
             )
 
             // Strength Indicator & Guidance
@@ -310,6 +324,24 @@ fun HomeScreen(
             QrCodeDialog(
                 text = state.currentResult?.text ?: "",
                 onDismiss = { viewModel.closeQrDialog() }
+            )
+        }
+
+        if (state.isVaultDialogVisible) {
+            VaultDialog(
+                isSetup = state.isVaultSetup,
+                isUnlocked = state.isVaultUnlocked,
+                vaultItems = state.vaultItems,
+                currentPassword = state.currentResult?.text,
+                onSetup = { viewModel.setupVault(it) },
+                onUnlock = { viewModel.unlockVault(it) },
+                onLock = { viewModel.lockVault() },
+                onSaveCurrent = { viewModel.saveCurrentToVault(it) },
+                onDeleteItem = { viewModel.deleteVaultItem(it) },
+                onToggleMask = { viewModel.toggleVaultItemMask(it) },
+                onCopy = { viewModel.copyToClipboard(context, it) },
+                onDismiss = { viewModel.closeVaultDialog() },
+                onActivity = { viewModel.resetVaultAutoLock() }
             )
         }
     }

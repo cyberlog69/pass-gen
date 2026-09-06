@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.QrCode
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledIconButton
@@ -40,6 +41,7 @@ fun PasswordDisplayCard(
     onRegenerate: () -> Unit,
     onCopy: () -> Unit,
     onShowQr: () -> Unit,
+    onSaveVault: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
@@ -116,6 +118,27 @@ fun PasswordDisplayCard(
                         contentDescription = "Show QR Code",
                         modifier = Modifier.size(18.dp)
                     )
+                }
+
+                // Save to Vault Button
+                if (onSaveVault != null) {
+                    FilledIconButton(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onSaveVault()
+                        },
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            contentColor = MaterialTheme.colorScheme.primary
+                        ),
+                        modifier = Modifier.size(38.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Security,
+                            contentDescription = "Save to Vault",
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
 
                 // Copy Button

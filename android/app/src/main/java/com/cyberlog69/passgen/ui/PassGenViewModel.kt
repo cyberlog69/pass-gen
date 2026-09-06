@@ -15,6 +15,8 @@ import com.cyberlog69.passgen.domain.HistoryItem
 import com.cyberlog69.passgen.domain.SecureRandomGenerator
 import com.cyberlog69.passgen.domain.Separator
 import com.cyberlog69.passgen.domain.ThemePreset
+import com.cyberlog69.passgen.domain.VaultCrypto
+import com.cyberlog69.passgen.domain.VaultItem
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,6 +24,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.UUID
 
 data class PassGenUiState(
     val mode: GeneratorMode = GeneratorMode.PASSWORD,
@@ -45,6 +51,10 @@ data class PassGenUiState(
     val isBulkDialogVisible: Boolean = false,
     val bulkCount: Int = 10,
     val bulkResults: List<String> = emptyList(),
+    val isVaultDialogVisible: Boolean = false,
+    val isVaultSetup: Boolean = false,
+    val isVaultUnlocked: Boolean = false,
+    val vaultItems: List<VaultItem> = emptyList(),
     val toastMessage: String? = null,
     val isFlagSecureEnabled: Boolean = true
 )
@@ -58,8 +68,22 @@ class PassGenViewModel(application: Application) : AndroidViewModel(application)
 
     private var autoWipeJob: Job? = null
     private var lastCopiedText: String? = null
+    private val devicePepper: String
+    private val pastHashes = mutableSetOf<String>()
+    private var currentVaultPasscode: String? = null
+    private var vaultAutoLockJob: Job? = null
 
     init {
+        var pepper = prefs.getString("device_pepper", null)
+        if (pepper == null || pepper.length != 64) {
+            pepper = VaultCrypto.generatePepper()
+            prefs.edit().putString("device_pepper", pepper).apply()
+        }
+        devicePepper = pepper
+
+        val savedHashes = prefs.getStringSet("past_hashes", emptySet()) ?: emptySet()
+        pastHashes.addAll(savedHashes)
+
         loadSettings()
         generate()
     }
@@ -77,6 +101,8 @@ class PassGenViewModel(application: Application) : AndroidViewModel(application)
             try { Separator.valueOf(it) } catch (_: Exception) { Separator.HYPHEN }
         } ?: Separator.HYPHEN
 
+        val hasVault = prefs.contains("vault_bundle")
+
         _uiState.update {
             it.copy(
                 mode = savedMode,
@@ -93,6 +119,7 @@ class PassGenViewModel(application: Application) : AndroidViewModel(application)
                 capitalizeWords = prefs.getBoolean("capitalizeWords", true),
                 appendNumber = prefs.getBoolean("appendNumber", false),
                 theme = savedTheme,
+                isVaultSetup = hasVault,
                 isFlagSecureEnabled = prefs.getBoolean("flagSecure", true)
             )
         }
@@ -121,57 +148,78 @@ class PassGenViewModel(application: Application) : AndroidViewModel(application)
 
     fun generate() {
         val s = _uiState.value
-        val text: String
-        val bits: Int
+        var text = ""
+        var bits = 0
 
-        when (s.mode) {
-            GeneratorMode.PASSWORD -> {
-                text = SecureRandomGenerator.generatePassword(
-                    length = s.passwordLength,
-                    includeUpper = s.includeUpper,
-                    includeLower = s.includeLower,
-                    includeNumbers = s.includeNumbers,
-                    includeSymbols = s.includeSymbols,
-                    excludeAmbiguous = s.excludeAmbiguous,
-                    customSymbols = s.customSymbols
-                )
-                bits = SecureRandomGenerator.calculateEntropy(
-                    mode = GeneratorMode.PASSWORD,
-                    length = s.passwordLength,
-                    includeUpper = s.includeUpper,
-                    includeLower = s.includeLower,
-                    includeNumbers = s.includeNumbers,
-                    includeSymbols = s.includeSymbols,
-                    excludeAmbiguous = s.excludeAmbiguous,
-                    customSymbols = s.customSymbols
-                )
+        for (attempt in 0 until 10) {
+            val candidateText: String
+            val candidateBits: Int
+            when (s.mode) {
+                GeneratorMode.PASSWORD -> {
+                    candidateText = SecureRandomGenerator.generatePassword(
+                        length = s.passwordLength,
+                        includeUpper = s.includeUpper,
+                        includeLower = s.includeLower,
+                        includeNumbers = s.includeNumbers,
+                        includeSymbols = s.includeSymbols,
+                        excludeAmbiguous = s.excludeAmbiguous,
+                        customSymbols = s.customSymbols
+                    )
+                    candidateBits = SecureRandomGenerator.calculateEntropy(
+                        mode = GeneratorMode.PASSWORD,
+                        length = s.passwordLength,
+                        includeUpper = s.includeUpper,
+                        includeLower = s.includeLower,
+                        includeNumbers = s.includeNumbers,
+                        includeSymbols = s.includeSymbols,
+                        excludeAmbiguous = s.excludeAmbiguous,
+                        customSymbols = s.customSymbols
+                    )
+                }
+                GeneratorMode.PASSPHRASE -> {
+                    candidateText = SecureRandomGenerator.generatePassphrase(
+                        wordCount = s.passphraseWordCount,
+                        separator = s.separator,
+                        capitalize = s.capitalizeWords,
+                        appendNumber = s.appendNumber
+                    )
+                    candidateBits = SecureRandomGenerator.calculateEntropy(
+                        mode = GeneratorMode.PASSPHRASE,
+                        length = s.passphraseWordCount,
+                        wordCount = s.passphraseWordCount,
+                        includeNumber = s.appendNumber
+                    )
+                }
+                GeneratorMode.PIN -> {
+                    candidateText = SecureRandomGenerator.generatePIN(s.pinLength)
+                    candidateBits = SecureRandomGenerator.calculateEntropy(
+                        mode = GeneratorMode.PIN,
+                        length = s.pinLength
+                    )
+                }
             }
-            GeneratorMode.PASSPHRASE -> {
-                text = SecureRandomGenerator.generatePassphrase(
-                    wordCount = s.passphraseWordCount,
-                    separator = s.separator,
-                    capitalize = s.capitalizeWords,
-                    appendNumber = s.appendNumber
-                )
-                bits = SecureRandomGenerator.calculateEntropy(
-                    mode = GeneratorMode.PASSPHRASE,
-                    length = s.passphraseWordCount,
-                    wordCount = s.passphraseWordCount,
-                    includeNumber = s.appendNumber
-                )
-            }
-            GeneratorMode.PIN -> {
-                text = SecureRandomGenerator.generatePIN(s.pinLength)
-                bits = SecureRandomGenerator.calculateEntropy(
-                    mode = GeneratorMode.PIN,
-                    length = s.pinLength
-                )
-            }
-        }
 
-        if (text.isEmpty()) {
-            _uiState.update { it.copy(toastMessage = "Enable at least one character set") }
-            return
+            if (candidateText.isEmpty()) {
+                _uiState.update { it.copy(toastMessage = "Enable at least one character set") }
+                return
+            }
+
+            val hash = VaultCrypto.hashPassword(devicePepper, candidateText)
+            if (!pastHashes.contains(hash)) {
+                pastHashes.add(hash)
+                if (pastHashes.size > 2000) {
+                    val excess = pastHashes.size - 2000
+                    val toRemove = pastHashes.take(excess)
+                    pastHashes.removeAll(toRemove.toSet())
+                }
+                prefs.edit().putStringSet("past_hashes", pastHashes).apply()
+                text = candidateText
+                bits = candidateBits
+                break
+            } else if (attempt == 9) {
+                text = candidateText
+                bits = candidateBits
+            }
         }
 
         val crackTime = SecureRandomGenerator.estimateCrackTime(bits)
@@ -394,6 +442,160 @@ class PassGenViewModel(application: Application) : AndroidViewModel(application)
     fun toggleFlagSecure() {
         _uiState.update { it.copy(isFlagSecureEnabled = !it.isFlagSecureEnabled) }
         saveSettings()
+    }
+
+    fun openVaultDialog() {
+        val hasVault = prefs.contains("vault_bundle")
+        _uiState.update { it.copy(isVaultDialogVisible = true, isVaultSetup = hasVault) }
+        resetVaultAutoLock()
+    }
+
+    fun closeVaultDialog() {
+        _uiState.update { it.copy(isVaultDialogVisible = false) }
+    }
+
+    fun setupVault(passcode: String) {
+        if (passcode.length < 6) {
+            _uiState.update { it.copy(toastMessage = "Passcode must be at least 6 characters") }
+            return
+        }
+        try {
+            val emptyList = emptyList<VaultItem>()
+            val bundle = VaultCrypto.encryptItems(emptyList, passcode)
+            prefs.edit().putString("vault_bundle", bundle.toJson()).apply()
+            currentVaultPasscode = passcode
+            _uiState.update {
+                it.copy(
+                    isVaultSetup = true,
+                    isVaultUnlocked = true,
+                    vaultItems = emptyList,
+                    toastMessage = "Vault initialized with AES-256-GCM encryption"
+                )
+            }
+            resetVaultAutoLock()
+        } catch (e: Exception) {
+            _uiState.update { it.copy(toastMessage = "Failed to setup vault: ${e.message}") }
+        }
+    }
+
+    fun unlockVault(passcode: String) {
+        val bundleJson = prefs.getString("vault_bundle", null)
+        if (bundleJson == null) {
+            _uiState.update { it.copy(toastMessage = "No vault found. Please set up first.") }
+            return
+        }
+        val bundle = VaultCrypto.EncryptedBundle.fromJson(bundleJson)
+        if (bundle == null) {
+            _uiState.update { it.copy(toastMessage = "Vault data is corrupted.") }
+            return
+        }
+
+        try {
+            val items = VaultCrypto.decryptItems(bundle, passcode)
+            currentVaultPasscode = passcode
+            _uiState.update {
+                it.copy(
+                    isVaultUnlocked = true,
+                    vaultItems = items,
+                    toastMessage = "Vault unlocked successfully"
+                )
+            }
+            resetVaultAutoLock()
+        } catch (_: Exception) {
+            _uiState.update { it.copy(toastMessage = "Incorrect master passcode") }
+        }
+    }
+
+    fun lockVault() {
+        currentVaultPasscode = null
+        vaultAutoLockJob?.cancel()
+        vaultAutoLockJob = null
+        _uiState.update {
+            it.copy(
+                isVaultUnlocked = false,
+                vaultItems = emptyList(),
+                toastMessage = "Vault locked"
+            )
+        }
+    }
+
+    fun saveCurrentToVault(title: String) {
+        val currentPass = _uiState.value.currentResult?.text
+        if (currentPass.isNullOrEmpty()) {
+            _uiState.update { it.copy(toastMessage = "Generate a password first") }
+            return
+        }
+        if (!_uiState.value.isVaultUnlocked || currentVaultPasscode == null) {
+            openVaultDialog()
+            _uiState.update { it.copy(toastMessage = "Unlock or set up vault to save") }
+            return
+        }
+
+        val passcode = currentVaultPasscode!!
+        val cleanTitle = if (title.isBlank()) {
+            "Password (${SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())})"
+        } else {
+            title.trim()
+        }
+        val newItem = VaultItem(
+            id = UUID.randomUUID().toString(),
+            title = cleanTitle,
+            password = currentPass,
+            isMasked = true,
+            createdAt = System.currentTimeMillis()
+        )
+
+        val updatedItems = listOf(newItem) + _uiState.value.vaultItems
+        try {
+            val bundle = VaultCrypto.encryptItems(updatedItems, passcode)
+            prefs.edit().putString("vault_bundle", bundle.toJson()).apply()
+            _uiState.update {
+                it.copy(
+                    vaultItems = updatedItems,
+                    toastMessage = "Saved \"$cleanTitle\" to encrypted vault!"
+                )
+            }
+            resetVaultAutoLock()
+        } catch (e: Exception) {
+            _uiState.update { it.copy(toastMessage = "Failed to save: ${e.message}") }
+        }
+    }
+
+    fun deleteVaultItem(id: String) {
+        val passcode = currentVaultPasscode ?: return
+        val updatedItems = _uiState.value.vaultItems.filter { it.id != id }
+        try {
+            val bundle = VaultCrypto.encryptItems(updatedItems, passcode)
+            prefs.edit().putString("vault_bundle", bundle.toJson()).apply()
+            _uiState.update {
+                it.copy(
+                    vaultItems = updatedItems,
+                    toastMessage = "Deleted item from vault"
+                )
+            }
+            resetVaultAutoLock()
+        } catch (e: Exception) {
+            _uiState.update { it.copy(toastMessage = "Failed to delete: ${e.message}") }
+        }
+    }
+
+    fun toggleVaultItemMask(id: String) {
+        _uiState.update { s ->
+            s.copy(vaultItems = s.vaultItems.map {
+                if (it.id == id) it.copy(isMasked = !it.isMasked) else it
+            })
+        }
+        resetVaultAutoLock()
+    }
+
+    fun resetVaultAutoLock() {
+        if (!_uiState.value.isVaultUnlocked) return
+        vaultAutoLockJob?.cancel()
+        vaultAutoLockJob = viewModelScope.launch {
+            delay(60_000)
+            lockVault()
+            _uiState.update { it.copy(toastMessage = "Vault auto-locked due to inactivity") }
+        }
     }
 
     fun dismissToast() {

@@ -55,3 +55,11 @@ data class GenerationResult(
     val guidance: StrengthGuidance,
     val strengthLevel: StrengthLevel
 )
+
+data class VaultItem(
+    val id: String = UUID.randomUUID().toString(),
+    val title: String,
+    val password: String,
+    val isMasked: Boolean = true,
+    val createdAt: Long = System.currentTimeMillis()
+)

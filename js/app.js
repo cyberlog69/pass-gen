@@ -239,6 +239,25 @@
   const doneQrBtn         = document.getElementById('doneQrBtn');
   const qrContainer       = document.getElementById('qrContainer');
 
+  // Vault Elements
+  const openVaultBtn        = document.getElementById('openVaultBtn');
+  const saveVaultBtn        = document.getElementById('saveVaultBtn');
+  const vaultModal          = document.getElementById('vaultModal');
+  const closeVaultModalBtn  = document.getElementById('closeVaultModal');
+  const vaultSetupView      = document.getElementById('vaultSetupView');
+  const vaultUnlockView     = document.getElementById('vaultUnlockView');
+  const vaultContentView    = document.getElementById('vaultContentView');
+  const setupPasscode       = document.getElementById('setupPasscode');
+  const confirmPasscode     = document.getElementById('confirmPasscode');
+  const btnCreateVault      = document.getElementById('btnCreateVault');
+  const unlockPasscode      = document.getElementById('unlockPasscode');
+  const btnUnlockVault      = document.getElementById('btnUnlockVault');
+  const btnLockVault        = document.getElementById('btnLockVault');
+  const vaultItemTitle      = document.getElementById('vaultItemTitle');
+  const btnSaveCurrentToVault = document.getElementById('btnSaveCurrentToVault');
+  const vaultItemCount      = document.getElementById('vaultItemCount');
+  const vaultList           = document.getElementById('vaultList');
+
   // State
   let currentMode = 'password'; // 'password', 'passphrase', or 'pin'
   const modeLengths = {
@@ -256,6 +275,24 @@
   let clipboardWipeTimer = null;
   let currentCopiedText = null;
   let lastActiveModalTrigger = null;
+
+  // Deduplication & Vault State
+  let devicePepper = (window.VaultCrypto && typeof window.VaultCrypto.getOrCreateDevicePepper === 'function')
+    ? window.VaultCrypto.getOrCreateDevicePepper()
+    : 'device_pepper_fallback_0123456789';
+  let pastHashes = new Set();
+  try {
+    const rawHashes = localStorage.getItem('passgen_hashes');
+    if (rawHashes) {
+      const arr = JSON.parse(rawHashes);
+      if (Array.isArray(arr)) pastHashes = new Set(arr);
+    }
+  } catch (_) {}
+
+  let vaultUnlockedItems = null; // Array of items when unlocked, null when locked
+  let vaultPasscode = null;      // Kept in volatile memory only while unlocked
+  let vaultAutoLockTimer = null;
+  let cleanupVaultFocus = null;
 
   // ── Mode Switcher ───────────────────────────────────────────
   function setMode(mode, skipSave = false) {
@@ -365,53 +402,77 @@
   }
 
   // ── Generator Dispatch ──────────────────────────────────────
-  function generate() {
+  async function generate() {
     triggerHaptic();
     let password = '';
     let bits = 0;
     let guidanceInfo = {};
+    let candidateHash = '';
 
-    if (currentMode === 'password') {
-      const rawLen = parseInt(lengthBox.value, 10);
-      const len = (isNaN(rawLen) ? 16 : Math.min(128, Math.max(4, rawLen)));
-      modeLengths.password = len;
-      const excludeAmbiguous = togAmbiguous.classList.contains('active');
-      const customSym = customSymbolsInput.value || DEFAULT_SYMBOLS;
-      const activeSets = getActiveCharsets(toggleEls, excludeAmbiguous, customSym);
+    // Rejection sampling against past hashes (up to 10 attempts to prevent collisions)
+    for (let attempt = 0; attempt < 10; attempt++) {
+      if (currentMode === 'password') {
+        const rawLen = parseInt(lengthBox.value, 10);
+        const len = (isNaN(rawLen) ? 16 : Math.min(128, Math.max(4, rawLen)));
+        modeLengths.password = len;
+        const excludeAmbiguous = togAmbiguous.classList.contains('active');
+        const customSym = customSymbolsInput.value || DEFAULT_SYMBOLS;
+        const activeSets = getActiveCharsets(toggleEls, excludeAmbiguous, customSym);
 
-      if (activeSets.length === 0) {
-        showToast('Enable at least one character set', 'error');
-        passText.textContent = '';
-        return;
+        if (activeSets.length === 0) {
+          showToast('Enable at least one character set', 'error');
+          passText.textContent = '';
+          return;
+        }
+        password = generateStandardPassword(len, activeSets);
+        bits = calcEntropyBits('password', { len, activeSets });
+        guidanceInfo = getStrengthGuidance('password', bits, {
+          len,
+          hasSymbols: toggleEls[3]?.classList.contains('active')
+        });
+      } else if (currentMode === 'passphrase') {
+        const rawCount = parseInt(lengthBox.value, 10);
+        const wordCount = (isNaN(rawCount) ? 4 : Math.min(10, Math.max(3, rawCount)));
+        modeLengths.passphrase = wordCount;
+        const rawSep = selectSeparator.value;
+        const safeSep = ALLOWED_SEPARATORS.includes(rawSep) ? rawSep : 'hyphen';
+        const separator = SEP_MAP[safeSep];
+        const capitalize = togCapitalize.classList.contains('active');
+        const includeNumber = togIncludeNum.classList.contains('active');
+
+        password = generatePassphrase(wordCount, separator, capitalize, includeNumber);
+        bits = calcEntropyBits('passphrase', { wordCount, includeNumber });
+        guidanceInfo = getStrengthGuidance('passphrase', bits, { wordCount });
+      } else {
+        // PIN Mode
+        const rawLen = parseInt(lengthBox.value, 10);
+        const len = (isNaN(rawLen) ? 6 : Math.min(16, Math.max(4, rawLen)));
+        modeLengths.pin = len;
+
+        password = generatePIN(len);
+        bits = calcEntropyBits('pin', { len });
+        guidanceInfo = getStrengthGuidance('pin', bits, { len });
       }
-      password = generateStandardPassword(len, activeSets);
-      bits = calcEntropyBits('password', { len, activeSets });
-      guidanceInfo = getStrengthGuidance('password', bits, {
-        len,
-        hasSymbols: toggleEls[3]?.classList.contains('active')
-      });
-    } else if (currentMode === 'passphrase') {
-      const rawCount = parseInt(lengthBox.value, 10);
-      const wordCount = (isNaN(rawCount) ? 4 : Math.min(10, Math.max(3, rawCount)));
-      modeLengths.passphrase = wordCount;
-      const rawSep = selectSeparator.value;
-      const safeSep = ALLOWED_SEPARATORS.includes(rawSep) ? rawSep : 'hyphen';
-      const separator = SEP_MAP[safeSep];
-      const capitalize = togCapitalize.classList.contains('active');
-      const includeNumber = togIncludeNum.classList.contains('active');
 
-      password = generatePassphrase(wordCount, separator, capitalize, includeNumber);
-      bits = calcEntropyBits('passphrase', { wordCount, includeNumber });
-      guidanceInfo = getStrengthGuidance('passphrase', bits, { wordCount });
-    } else {
-      // PIN Mode
-      const rawLen = parseInt(lengthBox.value, 10);
-      const len = (isNaN(rawLen) ? 6 : Math.min(16, Math.max(4, rawLen)));
-      modeLengths.pin = len;
-
-      password = generatePIN(len);
-      bits = calcEntropyBits('pin', { len });
-      guidanceInfo = getStrengthGuidance('pin', bits, { len });
+      // Check SHA-256 collision with past hashes
+      if (window.VaultCrypto && typeof window.VaultCrypto.hashPassword === 'function') {
+        try {
+          candidateHash = await window.VaultCrypto.hashPassword(devicePepper, password);
+          if (!pastHashes.has(candidateHash)) {
+            pastHashes.add(candidateHash);
+            try {
+              const arr = Array.from(pastHashes).slice(-2000);
+              localStorage.setItem('passgen_hashes', JSON.stringify(arr));
+            } catch (_) {}
+            break;
+          }
+          // Collision detected: continue loop to re-roll
+        } catch (_) {
+          break;
+        }
+      } else {
+        break;
+      }
     }
 
     modeOutputs[currentMode] = {
@@ -760,6 +821,249 @@
     if (lastActiveModalTrigger) lastActiveModalTrigger.focus();
   }
 
+  // ── Encrypted Vault Management ──────────────────────────────
+  function resetVaultAutoLock() {
+    clearTimeout(vaultAutoLockTimer);
+    vaultAutoLockTimer = setTimeout(() => {
+      if (vaultUnlockedItems !== null) {
+        lockVault();
+        showToast('Vault auto-locked after inactivity', 'info');
+      }
+    }, 60000);
+  }
+
+  function openVaultModal() {
+    lastActiveModalTrigger = openVaultBtn;
+    resetVaultAutoLock();
+
+    let storedBundle = null;
+    try {
+      const raw = localStorage.getItem('passgen_vault');
+      if (raw) storedBundle = JSON.parse(raw);
+    } catch (_) {}
+
+    if (!storedBundle) {
+      // First time: setup master passcode
+      if (vaultSetupView) vaultSetupView.hidden = false;
+      if (vaultUnlockView) vaultUnlockView.hidden = true;
+      if (vaultContentView) vaultContentView.hidden = true;
+      if (setupPasscode) setupPasscode.value = '';
+      if (confirmPasscode) confirmPasscode.value = '';
+    } else if (vaultUnlockedItems !== null) {
+      // Already unlocked
+      if (vaultSetupView) vaultSetupView.hidden = true;
+      if (vaultUnlockView) vaultUnlockView.hidden = true;
+      if (vaultContentView) vaultContentView.hidden = false;
+      renderVaultList();
+    } else {
+      // Locked: prompt for unlock
+      if (vaultSetupView) vaultSetupView.hidden = true;
+      if (vaultUnlockView) vaultUnlockView.hidden = false;
+      if (vaultContentView) vaultContentView.hidden = true;
+      if (unlockPasscode) unlockPasscode.value = '';
+    }
+
+    if (vaultModal) {
+      vaultModal.classList.add('open');
+      cleanupVaultFocus = trapFocus(vaultModal, closeVaultModal);
+    }
+  }
+
+  function closeVaultModal() {
+    if (vaultModal) vaultModal.classList.remove('open');
+    if (cleanupVaultFocus) cleanupVaultFocus();
+    if (lastActiveModalTrigger) lastActiveModalTrigger.focus();
+  }
+
+  async function handleCreateVault() {
+    const p1 = setupPasscode ? setupPasscode.value : '';
+    const p2 = confirmPasscode ? confirmPasscode.value : '';
+    if (!p1 || p1.length < 6) {
+      showToast('Passcode must be at least 6 characters', 'error');
+      return;
+    }
+    if (p1 !== p2) {
+      showToast('Passcodes do not match', 'error');
+      return;
+    }
+
+    try {
+      const bundle = await window.VaultCrypto.encryptVault([], p1);
+      localStorage.setItem('passgen_vault', JSON.stringify(bundle));
+      vaultPasscode = p1;
+      vaultUnlockedItems = [];
+      if (setupPasscode) setupPasscode.value = '';
+      if (confirmPasscode) confirmPasscode.value = '';
+      showToast('Vault created & encrypted with AES-256-GCM!', 'success');
+
+      if (vaultSetupView) vaultSetupView.hidden = true;
+      if (vaultUnlockView) vaultUnlockView.hidden = true;
+      if (vaultContentView) vaultContentView.hidden = false;
+      renderVaultList();
+      resetVaultAutoLock();
+    } catch (err) {
+      showToast('Error creating vault: ' + err.message, 'error');
+    }
+  }
+
+  async function handleUnlockVault() {
+    const p = unlockPasscode ? unlockPasscode.value : '';
+    if (!p) {
+      showToast('Enter your master passcode', 'error');
+      return;
+    }
+
+    const raw = localStorage.getItem('passgen_vault');
+    if (!raw) {
+      showToast('No vault found', 'error');
+      return;
+    }
+
+    try {
+      const bundle = JSON.parse(raw);
+      const items = await window.VaultCrypto.decryptVault(bundle, p);
+      vaultUnlockedItems = items;
+      vaultPasscode = p;
+      if (unlockPasscode) unlockPasscode.value = '';
+      showToast('Vault unlocked successfully!', 'success');
+
+      if (vaultSetupView) vaultSetupView.hidden = true;
+      if (vaultUnlockView) vaultUnlockView.hidden = true;
+      if (vaultContentView) vaultContentView.hidden = false;
+      renderVaultList();
+      resetVaultAutoLock();
+    } catch (_) {
+      showToast('Incorrect passcode or corrupted vault', 'error');
+    }
+  }
+
+  function lockVault() {
+    vaultPasscode = null;
+    vaultUnlockedItems = null;
+    clearTimeout(vaultAutoLockTimer);
+    if (vaultSetupView) vaultSetupView.hidden = true;
+    if (vaultUnlockView) vaultUnlockView.hidden = false;
+    if (vaultContentView) vaultContentView.hidden = true;
+    if (unlockPasscode) unlockPasscode.value = '';
+  }
+
+  async function saveItemToVault(title, pass) {
+    if (!pass) {
+      showToast('Generate a password first', 'error');
+      return;
+    }
+
+    const raw = localStorage.getItem('passgen_vault');
+    if (!raw || vaultUnlockedItems === null) {
+      openVaultModal();
+      showToast('Unlock or create vault to save', 'info');
+      return;
+    }
+
+    const item = {
+      id: Date.now().toString(36) + Math.random().toString(36).substring(2, 6),
+      title: title && title.trim() ? title.trim() : `Password (${new Date().toLocaleDateString()})`,
+      password: pass,
+      createdAt: Date.now()
+    };
+
+    vaultUnlockedItems.unshift(item);
+    try {
+      const bundle = await window.VaultCrypto.encryptVault(vaultUnlockedItems, vaultPasscode);
+      localStorage.setItem('passgen_vault', JSON.stringify(bundle));
+      renderVaultList();
+      resetVaultAutoLock();
+      showToast(`Saved "${item.title}" to encrypted vault!`, 'success');
+    } catch (err) {
+      showToast('Failed to save to vault: ' + err.message, 'error');
+    }
+  }
+
+  async function deleteVaultItem(id) {
+    if (!vaultUnlockedItems || !vaultPasscode) return;
+    vaultUnlockedItems = vaultUnlockedItems.filter(i => i.id !== id);
+    try {
+      const bundle = await window.VaultCrypto.encryptVault(vaultUnlockedItems, vaultPasscode);
+      localStorage.setItem('passgen_vault', JSON.stringify(bundle));
+      renderVaultList();
+      resetVaultAutoLock();
+      showToast('Deleted item from vault', 'info');
+    } catch (err) {
+      showToast('Failed to update vault', 'error');
+    }
+  }
+
+  function renderVaultList() {
+    if (!vaultUnlockedItems || !vaultList) return;
+    if (vaultItemCount) {
+      vaultItemCount.textContent = `${vaultUnlockedItems.length} item${vaultUnlockedItems.length === 1 ? '' : 's'}`;
+    }
+    vaultList.innerHTML = '';
+
+    if (vaultUnlockedItems.length === 0) {
+      const emptyLi = document.createElement('li');
+      emptyLi.style.cssText = 'text-align: center; color: var(--muted); padding: 20px; font-size: 13px;';
+      emptyLi.textContent = 'No saved passwords yet.';
+      vaultList.appendChild(emptyLi);
+      return;
+    }
+
+    vaultUnlockedItems.forEach(item => {
+      const li = document.createElement('li');
+      li.className = 'vault-item';
+
+      const infoDiv = document.createElement('div');
+      infoDiv.className = 'vault-item-info';
+
+      const titleSpan = document.createElement('span');
+      titleSpan.className = 'vault-item-title';
+      titleSpan.textContent = item.title;
+
+      const passSpan = document.createElement('span');
+      passSpan.className = 'vault-item-pass masked';
+      passSpan.textContent = '••••••••••••';
+
+      infoDiv.append(titleSpan, passSpan);
+
+      const actionsDiv = document.createElement('div');
+      actionsDiv.className = 'vault-item-actions';
+
+      // Eye button
+      const eyeBtn = document.createElement('button');
+      eyeBtn.className = 'vault-btn';
+      eyeBtn.title = 'Reveal / Mask';
+      eyeBtn.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+      eyeBtn.addEventListener('click', () => {
+        const isMasked = passSpan.classList.toggle('masked');
+        passSpan.textContent = isMasked ? '••••••••••••' : item.password;
+        resetVaultAutoLock();
+      });
+
+      // Copy button
+      const copyBtnItem = document.createElement('button');
+      copyBtnItem.className = 'vault-btn';
+      copyBtnItem.title = 'Copy';
+      copyBtnItem.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
+      copyBtnItem.addEventListener('click', () => {
+        copyText(item.password);
+        resetVaultAutoLock();
+      });
+
+      // Delete button
+      const delBtn = document.createElement('button');
+      delBtn.className = 'vault-btn del-btn';
+      delBtn.title = 'Delete';
+      delBtn.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+      delBtn.addEventListener('click', () => {
+        deleteVaultItem(item.id);
+      });
+
+      actionsDiv.append(eyeBtn, copyBtnItem, delBtn);
+      li.append(infoDiv, actionsDiv);
+      vaultList.appendChild(li);
+    });
+  }
+
   // ── Theme Switcher ──────────────────────────────────────────
   function initTheme() {
     let saved = localStorage.getItem('passgen_theme');
@@ -877,6 +1181,28 @@
   closeQrBtn.addEventListener('click', closeQrModal);
   doneQrBtn.addEventListener('click', closeQrModal);
   qrModal.addEventListener('click', e => { if (e.target === qrModal) closeQrModal(); });
+
+  // Vault modal events
+  if (openVaultBtn) openVaultBtn.addEventListener('click', openVaultModal);
+  if (saveVaultBtn) saveVaultBtn.addEventListener('click', () => saveItemToVault('', passText.textContent.trim()));
+  if (closeVaultModalBtn) closeVaultModalBtn.addEventListener('click', closeVaultModal);
+  if (vaultModal) {
+    vaultModal.addEventListener('click', e => { if (e.target === vaultModal) closeVaultModal(); });
+    vaultModal.addEventListener('mousemove', resetVaultAutoLock);
+    vaultModal.addEventListener('keydown', resetVaultAutoLock);
+  }
+  if (btnCreateVault) btnCreateVault.addEventListener('click', handleCreateVault);
+  if (btnUnlockVault) btnUnlockVault.addEventListener('click', handleUnlockVault);
+  if (btnLockVault) btnLockVault.addEventListener('click', () => { lockVault(); showToast('Vault locked', 'info'); });
+  if (btnSaveCurrentToVault) {
+    btnSaveCurrentToVault.addEventListener('click', () => {
+      saveItemToVault(vaultItemTitle.value, passText.textContent.trim());
+      if (vaultItemTitle) vaultItemTitle.value = '';
+    });
+  }
+  if (setupPasscode) setupPasscode.addEventListener('keydown', e => { if (e.key === 'Enter') handleCreateVault(); });
+  if (confirmPasscode) confirmPasscode.addEventListener('keydown', e => { if (e.key === 'Enter') handleCreateVault(); });
+  if (unlockPasscode) unlockPasscode.addEventListener('keydown', e => { if (e.key === 'Enter') handleUnlockVault(); });
 
   // Themes
   document.querySelectorAll('.theme-dot').forEach(dot => {
