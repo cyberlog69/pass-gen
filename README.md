@@ -3,12 +3,19 @@
 A **100% offline**, cryptographically secure Password, Passphrase & PIN Generator available as both a **Progressive Web App (PWA)** and a **Native Android App (Kotlin + Jetpack Compose)**. Engineered with zero network permissions, client-side AES-256-GCM vault encryption, encrypted backup export/import, offline breached password detection, zero-repeat deduplication intelligence, Android 13+ Material You themed icons, and modern aesthetics.
 
 ![Latest Release](https://img.shields.io/badge/Release-v1.2.1-blue?logo=android&logoColor=white)
+[![Live Web App](https://img.shields.io/badge/Live%20PWA-passgen--pwa--3903.web.app-brightgreen?logo=firebase&logoColor=white)](https://passgen-pwa-3903.web.app)
 ![License](https://img.shields.io/github/license/cyberlog69/pass-gen)
 ![Android](https://img.shields.io/badge/Android-Jetpack%20Compose-3DDC84?logo=android&logoColor=white)
 ![Material You](https://img.shields.io/badge/Material%20You-Themed%20Icons-7c3aed)
 ![PWA Ready](https://img.shields.io/badge/PWA-Ready-7c3aed)
 ![Offline](https://img.shields.io/badge/Offline-100%25-22c55e)
 ![Zero Dependencies](https://img.shields.io/badge/Dependencies-0-blue)
+
+---
+
+## 🌐 Live Web App (PWA)
+Access the live, installable Progressive Web App directly from anywhere:
+👉 **[https://passgen-pwa-3903.web.app](https://passgen-pwa-3903.web.app)** (Hosted on Google Cloud / Firebase Global CDN with automated SSL)
 
 ---
 
