@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -64,6 +65,7 @@ import com.cyberlog69.passgen.ui.components.PassphraseControls
 import com.cyberlog69.passgen.ui.components.PinControls
 import com.cyberlog69.passgen.ui.components.QrCodeDialog
 import com.cyberlog69.passgen.ui.components.StrengthIndicator
+import com.cyberlog69.passgen.ui.components.UpdateDialog
 import com.cyberlog69.passgen.ui.components.VaultDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -92,7 +94,11 @@ fun HomeScreen(
                 title = {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { viewModel.openUpdateDialog() }
+                            .padding(horizontal = 4.dp, vertical = 2.dp)
                     ) {
                         Text(
                             text = "PassGen",
@@ -129,6 +135,18 @@ fun HomeScreen(
                     }
                 },
                 actions = {
+                    IconButton(
+                        onClick = { viewModel.openUpdateDialog() },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.SystemUpdate,
+                            contentDescription = "Updates & Security",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(19.dp)
+                        )
+                    }
+
                     IconButton(
                         onClick = { viewModel.openVaultDialog() },
                         modifier = Modifier.size(36.dp)
@@ -344,6 +362,14 @@ fun HomeScreen(
                 onImportBackup = { json, pass, merge -> viewModel.importVaultBackup(json, pass, merge) },
                 onDismiss = { viewModel.closeVaultDialog() },
                 onActivity = { viewModel.resetVaultAutoLock() }
+            )
+        }
+
+        if (state.isUpdateDialogVisible) {
+            UpdateDialog(
+                currentVersion = "1.2.1",
+                versionCode = 4,
+                onDismiss = { viewModel.closeUpdateDialog() }
             )
         }
     }

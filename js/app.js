@@ -263,6 +263,19 @@
   const btnImportVault      = document.getElementById('btnImportVault');
   const vaultFileInput      = document.getElementById('vaultFileInput');
 
+  // Updater & About Elements
+  const checkUpdateBtn      = document.getElementById('checkUpdateBtn');
+  const updateBanner        = document.getElementById('updateBanner');
+  const dismissUpdateBtn    = document.getElementById('dismissUpdateBtn');
+  const applyUpdateBtn      = document.getElementById('applyUpdateBtn');
+  const aboutModal          = document.getElementById('aboutModal');
+  const closeAboutModal     = document.getElementById('closeAboutModal');
+  const updateStatusBox     = document.getElementById('updateStatusBox');
+  const updateStatusIcon    = document.getElementById('updateStatusIcon');
+  const updateStatusText    = document.getElementById('updateStatusText');
+  const btnCheckUpdateManual= document.getElementById('btnCheckUpdateManual');
+  const btnViewGithubRelease= document.getElementById('btnViewGithubRelease');
+
   // State
   let currentMode = 'password'; // 'password', 'passphrase', or 'pin'
   const modeLengths = {
@@ -1330,12 +1343,157 @@
     }
   });
 
-  // Service Worker Registration
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js').catch(() => {});
+  // ── In-App Service Worker Updater & About Modal ─────────────
+  let swRegistration = null;
+  let waitingWorker = null;
+  let isRefreshing = false;
+  let cleanupAboutFocus = null;
+
+  function showUpdateBanner(worker) {
+    if (worker) waitingWorker = worker;
+    if (updateBanner) {
+      updateBanner.hidden = false;
+    }
+    if (updateStatusBox && updateStatusText) {
+      updateStatusBox.className = 'about-status-box update-ready';
+      updateStatusText.textContent = 'A new update (v1.2.1) is ready to install.';
+    }
+  }
+
+  function hideUpdateBanner() {
+    if (updateBanner) updateBanner.hidden = true;
+  }
+
+  function applyUpdate() {
+    if (waitingWorker) {
+      waitingWorker.postMessage({ action: 'skipWaiting' });
+    } else if (swRegistration && swRegistration.waiting) {
+      swRegistration.waiting.postMessage({ action: 'skipWaiting' });
+    } else {
+      window.location.reload();
+    }
+  }
+
+  function openAboutModal() {
+    lastActiveModalTrigger = checkUpdateBtn;
+    if (aboutModal) {
+      aboutModal.classList.add('open');
+      aboutModal.hidden = false;
+      cleanupAboutFocus = trapFocus(aboutModal, closeAboutModalDialog);
+    }
+  }
+
+  function closeAboutModalDialog() {
+    if (aboutModal) {
+      aboutModal.classList.remove('open');
+      aboutModal.hidden = true;
+    }
+    if (cleanupAboutFocus) {
+      cleanupAboutFocus();
+      cleanupAboutFocus = null;
+    }
+    if (lastActiveModalTrigger) {
+      lastActiveModalTrigger.focus();
+      lastActiveModalTrigger = null;
+    }
+  }
+
+  async function checkManualUpdate() {
+    if (!('serviceWorker' in navigator) || !swRegistration) {
+      showToast('Offline mode active. Check GitHub for APK updates.', 'info');
+      return;
+    }
+
+    if (updateStatusBox && updateStatusText) {
+      updateStatusBox.className = 'about-status-box checking';
+      updateStatusText.textContent = 'Checking for updates...';
+    }
+
+    try {
+      await swRegistration.update();
+      setTimeout(() => {
+        if (waitingWorker || (swRegistration && swRegistration.waiting)) {
+          showUpdateBanner(waitingWorker || swRegistration.waiting);
+        } else {
+          if (updateStatusBox && updateStatusText) {
+            updateStatusBox.className = 'about-status-box';
+            updateStatusText.textContent = 'PassGen is up to date (v1.2.1).';
+          }
+          showToast('PassGen is up to date (v1.2.1) ✨', 'success');
+        }
+      }, 600);
+    } catch (_) {
+      if (updateStatusBox && updateStatusText) {
+        updateStatusBox.className = 'about-status-box';
+        updateStatusText.textContent = 'Running offline (v1.2.1).';
+      }
+      showToast('Checked — currently running offline', 'info');
+    }
+  }
+
+  function initServiceWorkerUpdater() {
+    if (!('serviceWorker' in navigator)) return;
+
+    // Reload once when the new active service worker takes control
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (isRefreshing) return;
+      isRefreshing = true;
+      window.location.reload();
+    });
+
+    window.addEventListener('load', async () => {
+      try {
+        const reg = await navigator.serviceWorker.register('./sw.js');
+        swRegistration = reg;
+
+        // Check if an update is already waiting
+        if (reg.waiting) {
+          showUpdateBanner(reg.waiting);
+        }
+
+        // Listen for new workers being installed
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          if (!newWorker) return;
+
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              // New update installed and waiting to take over
+              showUpdateBanner(newWorker);
+              showToast('New PassGen update ready! Tap Updates to reload.', 'info');
+            }
+          });
+        });
+      } catch (_) {}
+    });
+
+    // Check for updates when returning to the tab
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && swRegistration) {
+        swRegistration.update().catch(() => {});
+      }
     });
   }
+
+  // Updater Event Listeners
+  if (checkUpdateBtn) checkUpdateBtn.addEventListener('click', openAboutModal);
+  if (closeAboutModal) closeAboutModal.addEventListener('click', closeAboutModalDialog);
+  if (aboutModal) {
+    aboutModal.addEventListener('click', (e) => {
+      if (e.target === aboutModal) closeAboutModalDialog();
+    });
+  }
+  if (applyUpdateBtn) applyUpdateBtn.addEventListener('click', applyUpdate);
+  if (dismissUpdateBtn) dismissUpdateBtn.addEventListener('click', hideUpdateBanner);
+  if (btnCheckUpdateManual) btnCheckUpdateManual.addEventListener('click', checkManualUpdate);
+  if (btnViewGithubRelease) {
+    btnViewGithubRelease.addEventListener('click', () => {
+      window.open('https://github.com/cyberlog69/pass-gen/releases', '_blank', 'noopener,noreferrer');
+    });
+  }
+
+  // Service Worker Registration & Updater Initialization
+  initServiceWorkerUpdater();
 
   // Periodic Relative Time refresh for history
   setInterval(renderHistory, 30000);
@@ -1364,7 +1522,13 @@
       ALLOWED_THEMES,
       ALLOWED_SEPARATORS,
       SEP_MAP,
-      STRENGTH_LEVELS
+      STRENGTH_LEVELS,
+      showUpdateBanner,
+      hideUpdateBanner,
+      applyUpdate,
+      openAboutModal,
+      closeAboutModalDialog,
+      checkManualUpdate
     });
   }
 })();

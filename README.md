@@ -2,7 +2,7 @@
 
 A **100% offline**, cryptographically secure Password, Passphrase & PIN Generator available as both a **Progressive Web App (PWA)** and a **Native Android App (Kotlin + Jetpack Compose)**. Engineered with zero network permissions, client-side AES-256-GCM vault encryption, encrypted backup export/import, offline breached password detection, zero-repeat deduplication intelligence, Android 13+ Material You themed icons, and modern aesthetics.
 
-![Latest Release](https://img.shields.io/badge/Release-v1.2.0-blue?logo=android&logoColor=white)
+![Latest Release](https://img.shields.io/badge/Release-v1.2.1-blue?logo=android&logoColor=white)
 ![License](https://img.shields.io/github/license/cyberlog69/pass-gen)
 ![Android](https://img.shields.io/badge/Android-Jetpack%20Compose-3DDC84?logo=android&logoColor=white)
 ![Material You](https://img.shields.io/badge/Material%20You-Themed%20Icons-7c3aed)
@@ -12,27 +12,27 @@ A **100% offline**, cryptographically secure Password, Passphrase & PIN Generato
 
 ---
 
-## 📲 Download Latest Android Release (v1.2.0)
+## 📲 Download Latest Android Release (v1.2.1)
 
 You can directly install the pre-compiled, optimized release APK on your Android device (Android 8.0 / API 26 through Android 15+):
 
-- **GitHub Release**: [PassGen v1.2.0 Release](https://github.com/cyberlog69/pass-gen/releases/tag/v1.2.0)
-- **Direct Download (Local)**: [`release/PassGen-v1.2.0.apk`](release/PassGen-v1.2.0.apk)
-- **Direct Download (GitHub)**: [Download PassGen-v1.2.0.apk](https://github.com/cyberlog69/pass-gen/releases/download/v1.2.0/PassGen-v1.2.0.apk)
-- **File Size**: ~1.19 MB (Shrunk with R8 optimization and resource shrinking)
-- **Version**: `1.2.0` (versionCode `3`)
+- **GitHub Release**: [PassGen v1.2.1 Release](https://github.com/cyberlog69/pass-gen/releases/tag/v1.2.1)
+- **Direct Download (Local)**: [`release/PassGen-v1.2.1.apk`](release/PassGen-v1.2.1.apk)
+- **Direct Download (GitHub)**: [Download PassGen-v1.2.1.apk](https://github.com/cyberlog69/pass-gen/releases/download/v1.2.1/PassGen-v1.2.1.apk)
+- **File Size**: ~1.16 MB (Shrunk with R8 optimization and resource shrinking)
+- **Version**: `1.2.1` (versionCode `4`)
 
 ### 🔒 Cryptographic Checksum Verification
 Verify the authenticity and integrity of your downloaded APK using SHA-256:
 ```bash
 # PowerShell
-Get-FileHash release/PassGen-v1.2.0.apk -Algorithm SHA256
+Get-FileHash release/PassGen-v1.2.1.apk -Algorithm SHA256
 
 # Linux / macOS
-sha256sum release/PassGen-v1.2.0.apk
+sha256sum release/PassGen-v1.2.1.apk
 ```
 ```
-SHA256: 76CFE5994914D9639C6C2CA33467FD1D5362417EFABFD6A7A490562BBF9D0180
+SHA256: F8764C440CEC98E781CD932B257D03BD20048D48FF02CC9E66ACDB3436E17B8A
 ```
 
 ---
@@ -54,6 +54,11 @@ SHA256: 76CFE5994914D9639C6C2CA33467FD1D5362417EFABFD6A7A490562BBF9D0180
 - **Encrypted Backup Export & Restore**: Export and import your encrypted vault (`passgen-vault-backup`) between the Web PWA and Android app with non-destructive merge support.
 - **Zero Disk Exposure**: The Master Passcode is never persisted to disk or device preferences.
 - **Inactivity Auto-Lock**: Vault items are automatically scrubbed from memory after 60 seconds of inactivity.
+
+### 🔄 In-App Updater & Security Controls
+- **Web PWA Service Worker Updater**: Automatically detects new deployments in the background, displays an interactive "Update Ready" banner, and instantly swaps to the new version with zero page disruption.
+- **Manual "Check for Updates"**: Header button and About modal trigger explicit background checks via `registration.update()`.
+- **Android Privacy-Preserving In-App Updates**: Dedicated Updates & Security dialog displaying installed build info, 100% offline status guarantees, and one-tap verified GitHub Releases downloads.
 
 
 ### 🧠 Intelligent Zero-Repeat Deduplication (Never Generates Same Password Twice)
@@ -128,8 +133,8 @@ xdg-open index.html   # Linux
 ```
 pass-gen/
 ├── release/                 # Pre-built release APKs and SHA-256 checksums
-│   ├── PassGen-v1.2.0.apk
-│   └── PassGen-v1.2.0-checksums.txt
+│   ├── PassGen-v1.2.1.apk
+│   └── PassGen-v1.2.1-checksums.txt
 ├── android/                 # Native Android App (Kotlin + Jetpack Compose)
 │   ├── app/
 │   │   ├── src/main/

@@ -58,6 +58,7 @@ data class PassGenUiState(
     val isVaultSetup: Boolean = false,
     val isVaultUnlocked: Boolean = false,
     val vaultItems: List<VaultItem> = emptyList(),
+    val isUpdateDialogVisible: Boolean = false,
     val toastMessage: String? = null,
     val isFlagSecureEnabled: Boolean = true
 )
@@ -401,6 +402,14 @@ class PassGenViewModel(application: Application) : AndroidViewModel(application)
 
     fun closeQrDialog() {
         _uiState.update { it.copy(isQrDialogVisible = false) }
+    }
+
+    fun openUpdateDialog() {
+        _uiState.update { it.copy(isUpdateDialogVisible = true) }
+    }
+
+    fun closeUpdateDialog() {
+        _uiState.update { it.copy(isUpdateDialogVisible = false) }
     }
 
     fun openBulkDialog() {

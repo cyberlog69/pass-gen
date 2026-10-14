@@ -1,5 +1,5 @@
 // Cache-Only strategy — all assets are pre-cached at install time.
-const CACHE_NAME = 'passgen-v5';
+const CACHE_NAME = 'passgen-v6';
 const ASSETS = [
   './',
   './index.html',
@@ -15,6 +15,12 @@ const ASSETS = [
   './icon.svg',
   './manifest.json'
 ];
+
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.action === 'skipWaiting') {
+    self.skipWaiting();
+  }
+});
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

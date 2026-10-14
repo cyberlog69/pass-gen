@@ -259,6 +259,28 @@ async function main() {
     assert(!LeakedPasswordChecker.checkLeakedPassword('correct-horse-battery-staple').isLeaked);
   });
 
+  await runTest('In-app updater methods are exported and functional', () => {
+    assert.strictEqual(typeof PassGen.showUpdateBanner, 'function', 'showUpdateBanner should be a function');
+    assert.strictEqual(typeof PassGen.hideUpdateBanner, 'function', 'hideUpdateBanner should be a function');
+    assert.strictEqual(typeof PassGen.applyUpdate, 'function', 'applyUpdate should be a function');
+    assert.strictEqual(typeof PassGen.checkManualUpdate, 'function', 'checkManualUpdate should be a function');
+
+    // Test banner display
+    PassGen.showUpdateBanner();
+    PassGen.hideUpdateBanner();
+
+    // Test applyUpdate with mock worker
+    let messageSent = false;
+    const mockWorker = {
+      postMessage: (msg) => {
+        if (msg && msg.action === 'skipWaiting') messageSent = true;
+      }
+    };
+    PassGen.showUpdateBanner(mockWorker);
+    PassGen.applyUpdate();
+    assert.strictEqual(messageSent, true, 'applyUpdate should send skipWaiting to waiting worker');
+  });
+
   console.log(`\nResults: ${passed} passed, ${failed} failed`);
 
   if (failed > 0) {
