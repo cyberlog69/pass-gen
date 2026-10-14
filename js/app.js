@@ -257,6 +257,11 @@
   const btnSaveCurrentToVault = document.getElementById('btnSaveCurrentToVault');
   const vaultItemCount      = document.getElementById('vaultItemCount');
   const vaultList           = document.getElementById('vaultList');
+  const btnRestoreBackupSetup = document.getElementById('btnRestoreBackupSetup');
+  const btnRestoreBackupUnlock = document.getElementById('btnRestoreBackupUnlock');
+  const btnExportVault      = document.getElementById('btnExportVault');
+  const btnImportVault      = document.getElementById('btnImportVault');
+  const vaultFileInput      = document.getElementById('vaultFileInput');
 
   // State
   let currentMode = 'password'; // 'password', 'passphrase', or 'pin'
@@ -472,6 +477,19 @@
         }
       } else {
         break;
+      }
+    }
+
+    // Check offline leaked / compromised password database
+    if (window.LeakedPasswordChecker && password) {
+      const leakCheck = window.LeakedPasswordChecker.checkLeakedPassword(password);
+      if (leakCheck && leakCheck.isLeaked) {
+        guidanceInfo = {
+          status: 'alert',
+          icon: '⚠️',
+          text: 'Compromised! ' + (leakCheck.reason || 'Found in public breach digests. Regenerate recommended.')
+        };
+        bits = Math.min(bits, 20);
       }
     }
 
@@ -1064,6 +1082,87 @@
     });
   }
 
+  // ── Vault Backup Export & Import ─────────────────────────────
+  async function handleExportVault() {
+    if (!vaultUnlockedItems || !vaultPasscode) {
+      showToast('Unlock vault to export', 'error');
+      return;
+    }
+    try {
+      const backupJson = await window.VaultCrypto.exportVaultBackup(vaultUnlockedItems, vaultPasscode);
+      const blob = new Blob([backupJson], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const dateStr = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `passgen-vault-${dateStr}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast('Vault exported securely (AES-256-GCM)', 'success');
+      resetVaultAutoLock();
+    } catch (err) {
+      showToast('Export failed: ' + err.message, 'error');
+    }
+  }
+
+  function handleImportVaultClick() {
+    if (vaultFileInput) {
+      vaultFileInput.value = '';
+      vaultFileInput.click();
+    }
+  }
+
+  async function handleImportVaultFile(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const text = e.target.result;
+      let passcode = vaultPasscode;
+      if (!passcode) {
+        passcode = prompt('Enter the Master Passcode used to encrypt this backup:');
+        if (!passcode) return;
+      }
+      try {
+        const importedItems = await window.VaultCrypto.importVaultBackup(text, passcode);
+        if (!Array.isArray(importedItems)) {
+          showToast('Invalid backup content', 'error');
+          return;
+        }
+
+        let finalItems;
+        if (vaultUnlockedItems && vaultUnlockedItems.length > 0) {
+          const shouldMerge = confirm(`Imported ${importedItems.length} items.\nClick OK to MERGE with current ${vaultUnlockedItems.length} items, or CANCEL to REPLACE.`);
+          if (shouldMerge) {
+            const existingIds = new Set(vaultUnlockedItems.map(i => i.id));
+            const newItems = importedItems.filter(i => !existingIds.has(i.id));
+            finalItems = [...newItems, ...vaultUnlockedItems];
+          } else {
+            finalItems = importedItems;
+          }
+        } else {
+          finalItems = importedItems;
+        }
+
+        vaultPasscode = passcode;
+        vaultUnlockedItems = finalItems;
+        const bundle = await window.VaultCrypto.encryptVault(finalItems, passcode);
+        localStorage.setItem('passgen_vault', JSON.stringify(bundle));
+
+        if (vaultSetupView) vaultSetupView.hidden = true;
+        if (vaultUnlockView) vaultUnlockView.hidden = true;
+        if (vaultContentView) vaultContentView.hidden = false;
+        renderVaultList();
+        resetVaultAutoLock();
+        showToast(`Successfully restored ${importedItems.length} items!`, 'success');
+      } catch (err) {
+        showToast(err.message || 'Decryption failed: Incorrect passcode', 'error');
+      }
+    };
+    reader.readAsText(file);
+  }
+
   // ── Theme Switcher ──────────────────────────────────────────
   function initTheme() {
     let saved = localStorage.getItem('passgen_theme');
@@ -1203,6 +1302,18 @@
   if (setupPasscode) setupPasscode.addEventListener('keydown', e => { if (e.key === 'Enter') handleCreateVault(); });
   if (confirmPasscode) confirmPasscode.addEventListener('keydown', e => { if (e.key === 'Enter') handleCreateVault(); });
   if (unlockPasscode) unlockPasscode.addEventListener('keydown', e => { if (e.key === 'Enter') handleUnlockVault(); });
+
+  // Backup & Restore
+  if (btnExportVault) btnExportVault.addEventListener('click', handleExportVault);
+  if (btnImportVault) btnImportVault.addEventListener('click', handleImportVaultClick);
+  if (btnRestoreBackupSetup) btnRestoreBackupSetup.addEventListener('click', handleImportVaultClick);
+  if (btnRestoreBackupUnlock) btnRestoreBackupUnlock.addEventListener('click', handleImportVaultClick);
+  if (vaultFileInput) {
+    vaultFileInput.addEventListener('change', (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (file) handleImportVaultFile(file);
+    });
+  }
 
   // Themes
   document.querySelectorAll('.theme-dot').forEach(dot => {

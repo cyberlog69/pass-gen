@@ -12,8 +12,11 @@ import androidx.lifecycle.viewModelScope
 import com.cyberlog69.passgen.domain.GenerationResult
 import com.cyberlog69.passgen.domain.GeneratorMode
 import com.cyberlog69.passgen.domain.HistoryItem
+import com.cyberlog69.passgen.domain.GuidanceStatus
+import com.cyberlog69.passgen.domain.LeakedPasswordChecker
 import com.cyberlog69.passgen.domain.SecureRandomGenerator
 import com.cyberlog69.passgen.domain.Separator
+import com.cyberlog69.passgen.domain.StrengthGuidance
 import com.cyberlog69.passgen.domain.ThemePreset
 import com.cyberlog69.passgen.domain.VaultCrypto
 import com.cyberlog69.passgen.domain.VaultItem
@@ -222,19 +225,29 @@ class PassGenViewModel(application: Application) : AndroidViewModel(application)
             }
         }
 
-        val crackTime = SecureRandomGenerator.estimateCrackTime(bits)
-        val guidance = SecureRandomGenerator.getGuidance(
-            mode = s.mode,
-            bits = bits,
-            length = if (s.mode == GeneratorMode.PIN) s.pinLength else s.passwordLength,
-            hasSymbols = s.includeSymbols,
-            wordCount = s.passphraseWordCount
-        )
-        val strength = SecureRandomGenerator.getStrengthLevel(bits)
+        val leakResult = LeakedPasswordChecker.check(text)
+        val finalBits = if (leakResult.isLeaked) minOf(bits, 20) else bits
+        val guidance = if (leakResult.isLeaked) {
+            StrengthGuidance(
+                status = GuidanceStatus.ALERT,
+                icon = "⚠️",
+                text = "Compromised! " + (leakResult.reason ?: "Found in breach digests. Regenerate recommended.")
+            )
+        } else {
+            SecureRandomGenerator.getGuidance(
+                mode = s.mode,
+                bits = bits,
+                length = if (s.mode == GeneratorMode.PIN) s.pinLength else s.passwordLength,
+                hasSymbols = s.includeSymbols,
+                wordCount = s.passphraseWordCount
+            )
+        }
+        val crackTime = SecureRandomGenerator.estimateCrackTime(finalBits)
+        val strength = SecureRandomGenerator.getStrengthLevel(finalBits)
 
         val result = GenerationResult(
             text = text,
-            entropyBits = bits,
+            entropyBits = finalBits,
             crackTime = crackTime,
             guidance = guidance,
             strengthLevel = strength
@@ -600,5 +613,52 @@ class PassGenViewModel(application: Application) : AndroidViewModel(application)
 
     fun dismissToast() {
         _uiState.update { it.copy(toastMessage = null) }
+    }
+
+    fun exportVaultBackup(context: Context) {
+        val passcode = currentVaultPasscode
+        if (passcode == null || !_uiState.value.isVaultUnlocked) {
+            _uiState.update { it.copy(toastMessage = "Unlock vault to export") }
+            return
+        }
+        try {
+            val json = VaultCrypto.exportBackup(_uiState.value.vaultItems, passcode)
+            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val clip = ClipData.newPlainText("PassGen Vault Backup", json)
+            clipboard.setPrimaryClip(clip)
+            _uiState.update { it.copy(toastMessage = "Encrypted backup copied to clipboard!") }
+            resetVaultAutoLock()
+        } catch (e: Exception) {
+            _uiState.update { it.copy(toastMessage = "Export failed: ${e.message}") }
+        }
+    }
+
+    fun importVaultBackup(backupJson: String, masterPasscode: String, merge: Boolean) {
+        try {
+            val imported = VaultCrypto.importBackup(backupJson, masterPasscode)
+            val currentItems = _uiState.value.vaultItems
+            val finalItems = if (merge && currentItems.isNotEmpty()) {
+                val existingIds = currentItems.map { it.id }.toSet()
+                imported.filter { it.id !in existingIds } + currentItems
+            } else {
+                imported
+            }
+
+            val bundle = VaultCrypto.encryptItems(finalItems, masterPasscode)
+            prefs.edit().putString("vault_bundle", bundle.toJson()).apply()
+            currentVaultPasscode = masterPasscode
+
+            _uiState.update {
+                it.copy(
+                    isVaultSetup = true,
+                    isVaultUnlocked = true,
+                    vaultItems = finalItems,
+                    toastMessage = "Restored ${imported.size} items from backup!"
+                )
+            }
+            resetVaultAutoLock()
+        } catch (_: Exception) {
+            _uiState.update { it.copy(toastMessage = "Decryption failed: Incorrect passcode or invalid backup") }
+        }
     }
 }

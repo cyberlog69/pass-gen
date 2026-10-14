@@ -285,6 +285,7 @@
           <input type="password" id="confirmPasscode" class="input-text" placeholder="Re-enter passcode" autocomplete="new-password">
         </div>
         <button class="btn-generate full-width" id="btnCreateVault">Set Passcode & Create Vault</button>
+        <button class="btn-secondary full-width" id="btnRestoreBackupSetup" style="margin-top: 10px; font-size: 13px;">📥 Restore from Backup File</button>
       </div>
 
       <!-- View B: Unlock Vault -->
@@ -294,8 +295,9 @@
           <label for="unlockPasscode">Master Passcode</label>
           <input type="password" id="unlockPasscode" class="input-text" placeholder="Enter master passcode" autocomplete="current-password">
         </div>
-        <div class="modal-actions">
+        <div class="modal-actions" style="flex-direction: column; gap: 8px;">
           <button class="btn-generate full-width" id="btnUnlockVault">Unlock Vault</button>
+          <button class="btn-secondary full-width" id="btnRestoreBackupUnlock" style="font-size: 13px;">📥 Restore from Backup File</button>
         </div>
       </div>
 
@@ -315,6 +317,18 @@
           </div>
         </div>
 
+        <div class="vault-backup-actions" style="display: flex; gap: 8px; margin-top: 12px; margin-bottom: 8px;">
+          <button class="btn-secondary" id="btnExportVault" style="flex: 1; padding: 7px 10px; font-size: 12px; display: inline-flex; align-items: center; justify-content: center; gap: 6px;">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export Backup
+          </button>
+          <button class="btn-secondary" id="btnImportVault" style="flex: 1; padding: 7px 10px; font-size: 12px; display: inline-flex; align-items: center; justify-content: center; gap: 6px;">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Import Backup
+          </button>
+        </div>
+        <input type="file" id="vaultFileInput" accept=".json,.enc,.passgen" style="display: none;">
+
         <div class="vault-items-header">
           <span>SAVED PASSWORDS</span>
           <span id="vaultItemCount">0 items</span>
@@ -331,6 +345,7 @@
   <script src="js/qrcode.js"></script>
   <script src="js/words.js"></script>
   <script src="js/vault.js"></script>
+  <script src="js/leaks.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

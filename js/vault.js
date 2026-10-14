@@ -1,4 +1,4 @@
-﻿(function () {
+(function () {
   'use strict';
 
   // ── Cryptographic Utility for Salted Hash Deduplication & AES-256-GCM Vault ──
@@ -108,14 +108,38 @@
     };
   }
 
-  async function decryptVault(bundle, passcode) {
-    if (!bundle || !bundle.salt || !bundle.iv || !bundle.ciphertext) {
-      throw new Error('Invalid vault bundle');
+  function toBuffer(str) {
+    if (typeof str !== 'string') return new Uint8Array(0).buffer;
+    const clean = str.trim();
+    if (/^[0-9a-fA-F]+$/.test(clean) && clean.length % 2 === 0) {
+      return hexToBuffer(clean);
     }
+    if (typeof Buffer !== 'undefined') {
+      const b = Buffer.from(clean, 'base64');
+      return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
+    }
+    const bin = atob(clean);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) {
+      bytes[i] = bin.charCodeAt(i);
+    }
+    return bytes.buffer;
+  }
+
+  async function decryptVault(bundle, passcode) {
+    if (!bundle) throw new Error('Invalid vault bundle');
+    const saltStr = bundle.salt || (bundle.kdf && bundle.kdf.salt);
+    const ivStr = bundle.iv || (bundle.cipher && bundle.cipher.iv);
+    const cipherStr = bundle.ciphertext;
+
+    if (!saltStr || !ivStr || !cipherStr) {
+      throw new Error('Invalid vault bundle: Missing cryptographic parameters');
+    }
+
     const crypto = getCrypto();
-    const salt = new Uint8Array(hexToBuffer(bundle.salt));
-    const iv = new Uint8Array(hexToBuffer(bundle.iv));
-    const ciphertext = hexToBuffer(bundle.ciphertext);
+    const salt = new Uint8Array(toBuffer(saltStr));
+    const iv = new Uint8Array(toBuffer(ivStr));
+    const ciphertext = toBuffer(cipherStr);
 
     const key = await deriveVaultKey(passcode, salt);
 
@@ -132,11 +156,58 @@
     }
   }
 
+  async function exportVaultBackup(items, passcode) {
+    const bundle = await encryptVault(items, passcode);
+    const payload = {
+      format: 'passgen-vault-backup',
+      version: 1,
+      timestamp: Date.now(),
+      kdf: {
+        algorithm: 'PBKDF2-HMAC-SHA256',
+        iterations: PBKDF2_ITERATIONS,
+        salt: bundle.salt
+      },
+      cipher: {
+        algorithm: 'AES-256-GCM',
+        iv: bundle.iv,
+        tagLength: 128
+      },
+      ciphertext: bundle.ciphertext,
+      itemCount: Array.isArray(items) ? items.length : 0
+    };
+    return JSON.stringify(payload, null, 2);
+  }
+
+  async function importVaultBackup(jsonOrObj, passcode) {
+    let parsed;
+    if (typeof jsonOrObj === 'string') {
+      try {
+        parsed = JSON.parse(jsonOrObj);
+      } catch (_) {
+        throw new Error('Invalid backup file: Not valid JSON');
+      }
+    } else {
+      parsed = jsonOrObj;
+    }
+
+    if (!parsed) {
+      throw new Error('Backup content is empty');
+    }
+
+    const items = await decryptVault(parsed, passcode);
+    if (!Array.isArray(items)) {
+      throw new Error('Decrypted backup content is invalid');
+    }
+    return items;
+  }
+
   const VaultCrypto = Object.freeze({
     getOrCreateDevicePepper,
     hashPassword,
     encryptVault,
-    decryptVault
+    decryptVault,
+    exportVaultBackup,
+    importVaultBackup
   });
 
   if (typeof window !== 'undefined') {

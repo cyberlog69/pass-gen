@@ -15,6 +15,9 @@ require('../js/qrcode.js');
 // Load vault.js
 require('../js/vault.js');
 
+// Load leaks.js
+require('../js/leaks.js');
+
 // Minimal DOM mocks to load app.js in Node
 const dummyEl = {
   classList: { contains: () => true, add: () => {}, remove: () => {}, toggle: () => {} },
@@ -195,6 +198,65 @@ async function main() {
       threw = true;
     }
     assert.strictEqual(threw, true, 'Decrypting with wrong passcode must throw');
+  });
+
+  await runTest('VaultCrypto exports and imports vault backup JSON', async () => {
+    const items = [
+      { id: 'item-1', title: 'Email', password: 'email_password_123', createdAt: 12345 },
+      { id: 'item-2', title: 'Server Root', password: 'root_pass_999!', createdAt: 67890 }
+    ];
+    const passcode = 'ExportMasterPasscode#456';
+    const backupJson = await VaultCrypto.exportVaultBackup(items, passcode);
+    assert(backupJson.includes('passgen-vault-backup'), 'Backup must contain format tag');
+
+    const restored = await VaultCrypto.importVaultBackup(backupJson, passcode);
+    assert.strictEqual(restored.length, 2);
+    assert.strictEqual(restored[0].title, 'Email');
+    assert.strictEqual(restored[1].password, 'root_pass_999!');
+
+    // Test wrong passcode on backup
+    let threw = false;
+    try {
+      await VaultCrypto.importVaultBackup(backupJson, 'incorrect_pass');
+    } catch (_) {
+      threw = true;
+    }
+    assert.strictEqual(threw, true, 'Importing backup with wrong passcode must fail');
+  });
+
+  await runTest('VaultCrypto imports Base64 encrypted bundle (Android interoperability)', async () => {
+    const items = [{ id: 'android-1', title: 'Android Card', password: 'card_pin_7788', createdAt: 55555 }];
+    const passcode = 'CrossPlatformPass#1';
+    // Encrypt with VaultCrypto
+    const bundle = await VaultCrypto.encryptVault(items, passcode);
+    // Convert hex to base64
+    const b64Salt = Buffer.from(bundle.salt, 'hex').toString('base64');
+    const b64Iv = Buffer.from(bundle.iv, 'hex').toString('base64');
+    const b64Cipher = Buffer.from(bundle.ciphertext, 'hex').toString('base64');
+
+    const androidFormatBackup = JSON.stringify({
+      format: 'passgen-vault-backup',
+      version: 1,
+      salt: b64Salt,
+      iv: b64Iv,
+      ciphertext: b64Cipher
+    });
+
+    const decrypted = await VaultCrypto.importVaultBackup(androidFormatBackup, passcode);
+    assert.strictEqual(decrypted.length, 1);
+    assert.strictEqual(decrypted[0].password, 'card_pin_7788');
+  });
+
+  await runTest('LeakedPasswordChecker flags breached passwords, trivial repeats, and walks', () => {
+    assert(LeakedPasswordChecker.checkLeakedPassword('password').isLeaked);
+    assert(LeakedPasswordChecker.checkLeakedPassword('12345678').isLeaked);
+    assert(LeakedPasswordChecker.checkLeakedPassword('admin123').isLeaked);
+    assert(LeakedPasswordChecker.checkLeakedPassword('aaaaaa').isLeaked);
+    assert(LeakedPasswordChecker.checkLeakedPassword('qwerty1234').isLeaked);
+
+    // Strong passwords should NOT be flagged
+    assert(!LeakedPasswordChecker.checkLeakedPassword('W!8pZ#92qL@vM').isLeaked);
+    assert(!LeakedPasswordChecker.checkLeakedPassword('correct-horse-battery-staple').isLeaked);
   });
 
   console.log(`\nResults: ${passed} passed, ${failed} failed`);

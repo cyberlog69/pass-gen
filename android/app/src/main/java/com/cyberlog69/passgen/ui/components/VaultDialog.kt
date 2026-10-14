@@ -23,6 +23,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Visibility
@@ -32,6 +34,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -73,10 +76,95 @@ fun VaultDialog(
     onDeleteItem: (String) -> Unit,
     onToggleMask: (String) -> Unit,
     onCopy: (String) -> Unit,
+    onExportBackup: () -> Unit = {},
+    onImportBackup: (String, String, Boolean) -> Unit = { _, _, _ -> },
     onDismiss: () -> Unit,
     onActivity: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var showRestoreDialog by remember { mutableStateOf(false) }
+
+    if (showRestoreDialog) {
+        var backupJsonInput by remember { mutableStateOf("") }
+        var backupPasscode by remember { mutableStateOf("") }
+        var mergeWithExisting by remember { mutableStateOf(true) }
+        var restoreError by remember { mutableStateOf<String?>(null) }
+
+        AlertDialog(
+            onDismissRequest = { showRestoreDialog = false },
+            title = {
+                Text("Restore Vault Backup", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "Paste your encrypted PassGen backup JSON below and enter the master passcode.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
+                    OutlinedTextField(
+                        value = backupJsonInput,
+                        onValueChange = {
+                            backupJsonInput = it
+                            restoreError = null
+                        },
+                        label = { Text("Backup JSON") },
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 90.dp, max = 150.dp),
+                        placeholder = { Text("{\"format\":\"passgen-vault-backup\"...}", fontSize = 12.sp) }
+                    )
+                    OutlinedTextField(
+                        value = backupPasscode,
+                        onValueChange = {
+                            backupPasscode = it
+                            restoreError = null
+                        },
+                        label = { Text("Master Passcode") },
+                        visualTransformation = PasswordVisualTransformation(),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (isUnlocked && vaultItems.isNotEmpty()) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Checkbox(
+                                checked = mergeWithExisting,
+                                onCheckedChange = { mergeWithExisting = it }
+                            )
+                            Text("Merge with current items", fontSize = 12.sp)
+                        }
+                    }
+                    if (restoreError != null) {
+                        Text(restoreError!!, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (backupJsonInput.isBlank()) {
+                            restoreError = "Please paste the backup JSON"
+                        } else if (backupPasscode.isBlank()) {
+                            restoreError = "Please enter the master passcode"
+                        } else {
+                            onImportBackup(backupJsonInput.trim(), backupPasscode, mergeWithExisting)
+                            showRestoreDialog = false
+                        }
+                    },
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Restore")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRestoreDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     if (!isSetup) {
         // Vault Setup View
         var passcode by remember { mutableStateOf("") }
@@ -183,8 +271,13 @@ fun VaultDialog(
                 }
             },
             dismissButton = {
-                TextButton(onClick = onDismiss) {
-                    Text("Cancel")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = { showRestoreDialog = true }) {
+                        Text("Restore Backup")
+                    }
+                    TextButton(onClick = onDismiss) {
+                        Text("Cancel")
+                    }
                 }
             },
             modifier = modifier
@@ -259,8 +352,13 @@ fun VaultDialog(
                 }
             },
             dismissButton = {
-                TextButton(onClick = onDismiss) {
-                    Text("Cancel")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = { showRestoreDialog = true }) {
+                        Text("Restore Backup")
+                    }
+                    TextButton(onClick = onDismiss) {
+                        Text("Cancel")
+                    }
                 }
             },
             modifier = modifier
@@ -321,6 +419,28 @@ fun VaultDialog(
                         }
 
                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            IconButton(
+                                onClick = onExportBackup,
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.FileDownload,
+                                    contentDescription = "Export Backup",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            IconButton(
+                                onClick = { showRestoreDialog = true },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.FileUpload,
+                                    contentDescription = "Restore Backup",
+                                    tint = MaterialTheme.colorScheme.secondary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                             IconButton(
                                 onClick = onLock,
                                 modifier = Modifier.size(32.dp)

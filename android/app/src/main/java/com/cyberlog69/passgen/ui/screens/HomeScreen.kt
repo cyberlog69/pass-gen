@@ -340,6 +340,8 @@ fun HomeScreen(
                 onDeleteItem = { viewModel.deleteVaultItem(it) },
                 onToggleMask = { viewModel.toggleVaultItemMask(it) },
                 onCopy = { viewModel.copyToClipboard(context, it) },
+                onExportBackup = { viewModel.exportVaultBackup(context) },
+                onImportBackup = { json, pass, merge -> viewModel.importVaultBackup(json, pass, merge) },
                 onDismiss = { viewModel.closeVaultDialog() },
                 onActivity = { viewModel.resetVaultAutoLock() }
             )

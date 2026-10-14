@@ -66,4 +66,32 @@ class VaultCryptoTest {
             // Expected
         }
     }
+
+    @Test
+    fun testExportImportBackupRoundtrip() {
+        val items = listOf(
+            VaultItem(id = "item-101", title = "Cloud Console", password = "super_secret_123", isMasked = true, createdAt = 123456789L)
+        )
+        val passcode = "BackupMasterPass#99"
+        val backupJson = VaultCrypto.exportBackup(items, passcode)
+
+        assertTrue("Backup JSON must specify passgen-vault-backup format", backupJson.contains("passgen-vault-backup"))
+        assertTrue("Backup JSON must contain PBKDF2-HMAC-SHA256", backupJson.contains("PBKDF2-HMAC-SHA256"))
+
+        val restored = VaultCrypto.importBackup(backupJson, passcode)
+        assertEquals(1, restored.size)
+        assertEquals("Cloud Console", restored[0].title)
+        assertEquals("super_secret_123", restored[0].password)
+    }
+
+    @Test
+    fun testDecodeBytesHexAndBase64() {
+        val hex = "deadbeef"
+        val bytesFromHex = VaultCrypto.decodeBytes(hex)
+        assertEquals(4, bytesFromHex.size)
+
+        val b64 = java.util.Base64.getEncoder().encodeToString(byteArrayOf(1, 2, 3, 4, 5))
+        val bytesFromB64 = VaultCrypto.decodeBytes(b64)
+        assertEquals(5, bytesFromB64.size)
+    }
 }

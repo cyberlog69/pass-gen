@@ -1,5 +1,5 @@
 // Cache-Only strategy — all assets are pre-cached at install time.
-const CACHE_NAME = 'passgen-v4';
+const CACHE_NAME = 'passgen-v5';
 const ASSETS = [
   './',
   './index.html',
@@ -9,6 +9,8 @@ const ASSETS = [
   './fonts/JetBrainsMono.woff2',
   './js/qrcode.js',
   './js/words.js',
+  './js/vault.js',
+  './js/leaks.js',
   './js/app.js',
   './icon.svg',
   './manifest.json'

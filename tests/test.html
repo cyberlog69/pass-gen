@@ -55,6 +55,8 @@
 
   <script src="../js/qrcode.js"></script>
   <script src="../js/words.js"></script>
+  <script src="../js/vault.js"></script>
+  <script src="../js/leaks.js"></script>
   <script src="../js/app.js"></script>
 
   <script>
@@ -188,10 +190,41 @@
       assert(estimateCrackTime(100).includes('years'), `High entropy crack time: ${estimateCrackTime(100)}`);
     })();
 
+    // ── 10. VaultCrypto Export / Import & AES-256-GCM ──
+    (async function () {
+      if (!window.VaultCrypto) return;
+      const items = [{ id: '1', title: 'Work', password: 'secretpassword123', createdAt: 12345 }];
+      const passcode = 'MyTestMasterPasscode#777';
+      const backupJson = await window.VaultCrypto.exportVaultBackup(items, passcode);
+      assert(backupJson.includes('passgen-vault-backup'), 'Vault backup contains passgen-vault-backup format tag');
+
+      const restored = await window.VaultCrypto.importVaultBackup(backupJson, passcode);
+      assert(restored.length === 1 && restored[0].password === 'secretpassword123', 'Vault backup restores items accurately');
+
+      let threw = false;
+      try {
+        await window.VaultCrypto.importVaultBackup(backupJson, 'wrong_passcode');
+      } catch (_) {
+        threw = true;
+      }
+      assert(threw, 'Vault backup fails with wrong passcode');
+    })();
+
+    // ── 11. Offline Leaked Password Checker ──
+    (function () {
+      if (!window.LeakedPasswordChecker) return;
+      assert(window.LeakedPasswordChecker.checkLeakedPassword('password').isLeaked, 'Identifies common breached password "password"');
+      assert(window.LeakedPasswordChecker.checkLeakedPassword('12345678').isLeaked, 'Identifies numeric sequence "12345678"');
+      assert(window.LeakedPasswordChecker.checkLeakedPassword('aaaaaa').isLeaked, 'Identifies repeated character "aaaaaa"');
+      assert(!window.LeakedPasswordChecker.checkLeakedPassword('x8#K@9!mQ2').isLeaked, 'Strong random password is not flagged as leaked');
+    })();
+
     // ── Summary ──
-    const total = passed + failed;
-    summary.textContent = `${passed}/${total} tests passed`;
-    summary.className = failed === 0 ? 'pass' : 'fail';
+    setTimeout(() => {
+      const total = passed + failed;
+      summary.textContent = `${passed}/${total} tests passed`;
+      summary.className = failed === 0 ? 'pass' : 'fail';
+    }, 300);
   </script>
 </body>
 </html>

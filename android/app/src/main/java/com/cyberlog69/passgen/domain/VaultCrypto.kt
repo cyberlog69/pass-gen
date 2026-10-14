@@ -1,4 +1,4 @@
-﻿package com.cyberlog69.passgen.domain
+package com.cyberlog69.passgen.domain
 
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
@@ -52,15 +52,40 @@ object VaultCrypto {
             fun fromJson(jsonStr: String): EncryptedBundle? {
                 return try {
                     val obj = JSONObject(jsonStr)
-                    EncryptedBundle(
-                        salt = obj.getString("salt"),
-                        iv = obj.getString("iv"),
-                        ciphertext = obj.getString("ciphertext")
-                    )
+                    val salt = when {
+                        obj.has("salt") -> obj.getString("salt")
+                        obj.has("kdf") -> obj.getJSONObject("kdf").optString("salt")
+                        else -> null
+                    }
+                    val iv = when {
+                        obj.has("iv") -> obj.getString("iv")
+                        obj.has("cipher") -> obj.getJSONObject("cipher").optString("iv")
+                        else -> null
+                    }
+                    val ciphertext = if (obj.has("ciphertext")) obj.getString("ciphertext") else null
+
+                    if (!salt.isNullOrBlank() && !iv.isNullOrBlank() && !ciphertext.isNullOrBlank()) {
+                        EncryptedBundle(salt = salt, iv = iv, ciphertext = ciphertext)
+                    } else {
+                        null
+                    }
                 } catch (_: Exception) {
                     null
                 }
             }
+        }
+    }
+
+    fun decodeBytes(str: String): ByteArray {
+        val clean = str.trim()
+        return if (clean.matches(Regex("^[0-9a-fA-F]+$")) && clean.length % 2 == 0) {
+            val bytes = ByteArray(clean.length / 2)
+            for (i in clean.indices step 2) {
+                bytes[i / 2] = clean.substring(i, i + 2).toInt(16).toByte()
+            }
+            bytes
+        } else {
+            Base64.getDecoder().decode(clean)
         }
     }
 
@@ -102,10 +127,9 @@ object VaultCrypto {
     }
 
     fun decryptItems(bundle: EncryptedBundle, masterPasscode: String): List<VaultItem> {
-        val decoder = Base64.getDecoder()
-        val salt = decoder.decode(bundle.salt)
-        val iv = decoder.decode(bundle.iv)
-        val cipherBytes = decoder.decode(bundle.ciphertext)
+        val salt = decodeBytes(bundle.salt)
+        val iv = decodeBytes(bundle.iv)
+        val cipherBytes = decodeBytes(bundle.ciphertext)
 
         val keySpec = PBEKeySpec(masterPasscode.toCharArray(), salt, PBKDF2_ITERATIONS, KEY_LENGTH_BITS)
         val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
@@ -133,5 +157,35 @@ object VaultCrypto {
             )
         }
         return result
+    }
+
+    fun exportBackup(items: List<VaultItem>, masterPasscode: String): String {
+        val bundle = encryptItems(items, masterPasscode)
+        val root = JSONObject()
+        root.put("format", "passgen-vault-backup")
+        root.put("version", 1)
+        root.put("timestamp", System.currentTimeMillis())
+
+        val kdf = JSONObject()
+        kdf.put("algorithm", "PBKDF2-HMAC-SHA256")
+        kdf.put("iterations", PBKDF2_ITERATIONS)
+        kdf.put("salt", bundle.salt)
+        root.put("kdf", kdf)
+
+        val cipher = JSONObject()
+        cipher.put("algorithm", "AES-256-GCM")
+        cipher.put("iv", bundle.iv)
+        cipher.put("tagLength", TAG_LENGTH_BITS)
+        root.put("cipher", cipher)
+
+        root.put("ciphertext", bundle.ciphertext)
+        root.put("itemCount", items.size)
+        return root.toString(2)
+    }
+
+    fun importBackup(jsonStr: String, masterPasscode: String): List<VaultItem> {
+        val bundle = EncryptedBundle.fromJson(jsonStr)
+            ?: throw IllegalArgumentException("Invalid backup format or corrupted JSON")
+        return decryptItems(bundle, masterPasscode)
     }
 }
