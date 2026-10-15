@@ -15,7 +15,7 @@ A **100% offline**, cryptographically secure Password, Passphrase & PIN Generato
 
 ## 🌐 Live Web App (PWA)
 Access the live, installable Progressive Web App directly from anywhere:
-👉 **[https://passgen-pwa-3903.web.app](https://passgen-pwa-3903.web.app)** (Hosted on Google Cloud / Firebase Global CDN with automated SSL)
+👉 **[https://passcrypt.live/](https://passcrypt.live/)** (Hosted on Google Cloud / Firebase Global CDN with automated SSL)
 
 ---
 
