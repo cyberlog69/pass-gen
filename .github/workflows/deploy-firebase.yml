@@ -7,11 +7,11 @@ on:
 
 permissions:
   contents: read
-  deployments: write
+  checks: write
 
 jobs:
-  test_and_deploy:
-    name: Test & Deploy Live PWA
+  build_and_deploy:
+    name: Test & Deploy to Live PWA
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -20,22 +20,15 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
-      - name: Run PWA & Cryptography Tests
+      - name: Run Cryptography & PWA Tests
         run: node tests/run-tests.js
 
-      # Deploy using Firebase Service Account (Recommended by Google/Firebase)
-      - name: Deploy to Firebase Hosting (Service Account)
-        if: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_PASSGEN_PWA_3903 != '' || secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
+      - name: Deploy to Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_PASSGEN_PWA_3903 || secrets.FIREBASE_SERVICE_ACCOUNT }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_PASSGEN_PWA_3903 }}
           channelId: live
           projectId: passgen-pwa-3903
-
-      # Fallback Deploy using FIREBASE_TOKEN (if using legacy CI token)
-      - name: Deploy to Firebase Hosting (CI Token Fallback)
-        if: ${{ (secrets.FIREBASE_SERVICE_ACCOUNT_PASSGEN_PWA_3903 == '' && secrets.FIREBASE_SERVICE_ACCOUNT == '') && secrets.FIREBASE_TOKEN != '' }}
-        run: npx firebase-tools deploy --only hosting --token "${{ secrets.FIREBASE_TOKEN }}" --project passgen-pwa-3903
