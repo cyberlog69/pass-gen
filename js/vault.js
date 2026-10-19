@@ -30,6 +30,8 @@
   }
 
   // ── 1. Device Pepper & Irreversible SHA-256 Hashing ──────────────────────
+  let inMemoryPepper = null;
+
   function getOrCreateDevicePepper() {
     const storageKey = 'passgen_device_pepper';
     try {
@@ -43,8 +45,14 @@
       }
       return pepper;
     } catch (_) {
-      // In-memory fallback if localStorage is restricted
-      return '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+      // In-memory CSPRNG fallback if localStorage is restricted (private browsing)
+      if (!inMemoryPepper) {
+        const crypto = getCrypto();
+        const rand = new Uint8Array(32);
+        crypto.getRandomValues(rand);
+        inMemoryPepper = bufferToHex(rand);
+      }
+      return inMemoryPepper;
     }
   }
 

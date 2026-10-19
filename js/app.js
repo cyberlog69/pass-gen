@@ -472,8 +472,8 @@
         guidanceInfo = getStrengthGuidance('pin', bits, { len });
       }
 
-      // Check SHA-256 collision with past hashes
-      if (window.VaultCrypto && typeof window.VaultCrypto.hashPassword === 'function') {
+      // Check SHA-256 collision with past hashes (Password & Passphrase modes only; avoid storing low-entropy PIN hashes)
+      if (currentMode !== 'pin' && window.VaultCrypto && typeof window.VaultCrypto.hashPassword === 'function') {
         try {
           candidateHash = await window.VaultCrypto.hashPassword(devicePepper, password);
           if (!pastHashes.has(candidateHash)) {
@@ -642,10 +642,14 @@
   }
 
   function clearHistory() {
-    if (history.length === 0) return;
+    if (history.length === 0 && pastHashes.size === 0) return;
     history.length = 0;
+    pastHashes.clear();
+    try {
+      localStorage.removeItem('passgen_hashes');
+    } catch (_) {}
     renderHistory();
-    showToast('History cleared', 'info');
+    showToast('History & collision cache cleared', 'info');
   }
 
   // ── Clipboard & Auto-wipe Timer ─────────────────────────────
@@ -1400,7 +1404,7 @@
 
   async function checkManualUpdate() {
     if (!('serviceWorker' in navigator) || !swRegistration) {
-      showToast('Offline mode active. Check GitHub for APK updates.', 'info');
+      showToast('Offline mode active. PWA is up to date.', 'info');
       return;
     }
 

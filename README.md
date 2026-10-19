@@ -1,50 +1,28 @@
 # 🔐 Offline Secure Password, Passphrase & PIN Generator
 
-A **100% offline**, cryptographically secure Password, Passphrase & PIN Generator available as both a **Progressive Web App (PWA)** and a **Native Android App (Kotlin + Jetpack Compose)**. Engineered with zero network permissions, client-side AES-256-GCM vault encryption, encrypted backup export/import, offline breached password detection, zero-repeat deduplication intelligence, Android 13+ Material You themed icons, and modern aesthetics.
+A **100% offline**, cryptographically secure Password, Passphrase & PIN Generator built as a **Progressive Web App (PWA)**. Engineered with zero network permissions, client-side AES-256-GCM vault encryption, encrypted backup export/import, offline breached password detection, zero external dependencies, and modern aesthetic themes.
 
-![Latest Release](https://img.shields.io/badge/Release-v1.2.1-blue?logo=android&logoColor=white)
 [![Live Web App](https://img.shields.io/badge/Live%20PWA-passcrypt.live-brightgreen?logo=firebase&logoColor=white)](https://passcrypt.live/)
+![Version](https://img.shields.io/badge/Version-v1.2.2-blue)
 ![License](https://img.shields.io/github/license/cyberlog69/pass-gen)
-![Android](https://img.shields.io/badge/Android-Jetpack%20Compose-3DDC84?logo=android&logoColor=white)
-![Material You](https://img.shields.io/badge/Material%20You-Themed%20Icons-7c3aed)
 ![PWA Ready](https://img.shields.io/badge/PWA-Ready-7c3aed)
 ![Offline](https://img.shields.io/badge/Offline-100%25-22c55e)
 ![Zero Dependencies](https://img.shields.io/badge/Dependencies-0-blue)
+![Firebase Hosting](https://img.shields.io/badge/Deploy-Firebase%20Hosting-FFA611?logo=firebase&logoColor=white)
 
 ---
 
 ## 🌐 Live Web App (PWA)
+
 Access the live, installable Progressive Web App directly from anywhere:
-👉 **[https://passcrypt.live/](https://passcrypt.live/)** (Hosted on Google Cloud / Firebase Global CDN with automated SSL)
+
+👉 **[https://passcrypt.live/](https://passcrypt.live/)** *(Primary Domain)*  
+👉 **[https://passgen-pwa-3903.web.app](https://passgen-pwa-3903.web.app)** *(Firebase CDN Fallback)*  
+*(Hosted on Google Cloud / Firebase Global CDN with automated SSL and HTTP clickjacking defense)*
 
 ---
 
-## 📲 Download Latest Android Release (v1.2.1)
-
-You can directly install the pre-compiled, optimized release APK on your Android device (Android 8.0 / API 26 through Android 15+):
-
-- **GitHub Release**: [PassGen v1.2.1 Release](https://github.com/cyberlog69/pass-gen/releases/tag/v1.2.1)
-- **Direct Download (Local)**: [`release/PassGen-v1.2.1.apk`](release/PassGen-v1.2.1.apk)
-- **Direct Download (GitHub)**: [Download PassGen-v1.2.1.apk](https://github.com/cyberlog69/pass-gen/releases/download/v1.2.1/PassGen-v1.2.1.apk)
-- **File Size**: ~1.16 MB (Shrunk with R8 optimization and resource shrinking)
-- **Version**: `1.2.1` (versionCode `4`)
-
-### 🔒 Cryptographic Checksum Verification
-Verify the authenticity and integrity of your downloaded APK using SHA-256:
-```bash
-# PowerShell
-Get-FileHash release/PassGen-v1.2.1.apk -Algorithm SHA256
-
-# Linux / macOS
-sha256sum release/PassGen-v1.2.1.apk
-```
-```
-SHA256: F8764C440CEC98E781CD932B257D03BD20048D48FF02CC9E66ACDB3436E17B8A
-```
-
----
-
-## ✨ Key Features Across Platforms
+## ✨ Key Features
 
 ### 🔑 3 Generator Modes
 - **Password Mode**: Configurable length (4–128 characters) with toggles for Uppercase, Lowercase, Numbers, Symbols, and Ambiguous character exclusion (`l, 1, I, O, 0, o, Q, S, 5, Z, 2`).
@@ -55,73 +33,46 @@ SHA256: F8764C440CEC98E781CD932B257D03BD20048D48FF02CC9E66ACDB3436E17B8A
 - **100% Offline Intelligence**: Instantly detects known breached passwords, keyboard walks (`qwerty`, `asdfgh`), trivial numeric sequences (`12345678`), and single-character repetitions without making network requests.
 - **Dynamic Guidance**: Immediately downgrades entropy rating and warns the user if a password candidate or manual entry matches breach digests.
 
-### 🗄️ Encrypted Offline Password Vault & Cross-Platform Backup
-- **AES-256-GCM Authenticated Encryption**: Passwords saved to the vault are protected with military-grade 256-bit AES-GCM and a 128-bit authentication tag.
+### 🗄️ Encrypted Offline Password Vault & Backup
+- **AES-256-GCM Authenticated Encryption**: Passwords saved to the vault are protected with 256-bit AES-GCM and a 128-bit authentication tag.
 - **PBKDF2 Key Derivation**: Uses 100,000 PBKDF2-HMAC-SHA256 iterations with a 128-bit random salt derived from your Master Passcode.
-- **Encrypted Backup Export & Restore**: Export and import your encrypted vault (`passgen-vault-backup`) between the Web PWA and Android app with non-destructive merge support.
-- **Zero Disk Exposure**: The Master Passcode is never persisted to disk or device preferences.
+- **Encrypted Backup Export & Restore**: Export and import your encrypted vault (`passgen-vault-backup`) across devices with non-destructive merge support.
+- **Zero Disk Exposure**: The Master Passcode is never persisted to disk or browser storage.
 - **Inactivity Auto-Lock**: Vault items are automatically scrubbed from memory after 60 seconds of inactivity.
 
-### 🔄 In-App Updater & Security Controls
+### 🔄 In-App Updater & Service Worker Lifecycle
 - **Web PWA Service Worker Updater**: Automatically detects new deployments in the background, displays an interactive "Update Ready" banner, and instantly swaps to the new version with zero page disruption.
 - **Manual "Check for Updates"**: Header button and About modal trigger explicit background checks via `registration.update()`.
-- **Android Privacy-Preserving In-App Updates**: Dedicated Updates & Security dialog displaying installed build info, 100% offline status guarantees, and one-tap verified GitHub Releases downloads.
 
-
-### 🧠 Intelligent Zero-Repeat Deduplication (Never Generates Same Password Twice)
-- **Irreversible SHA-256 Salting**: Passwords are **never stored in plaintext** for repeat checking. Each device generates a 256-bit CSPRNG pepper ($H = \text{SHA-256}(\text{pepper} \parallel P)$).
-- **Collision Prevention**: Automatically re-rolls up to 10 attempts if a candidate matches a previously generated hash.
-- **Hacker-Proof**: Even if local storage or memory is extracted, SHA-256 is an irreversible cryptographic one-way function that cannot be cracked backwards.
-
-### 🗄️ Encrypted Offline Password Vault
-- **AES-256-GCM Authenticated Encryption**: Passwords saved to the vault are protected with military-grade 256-bit AES-GCM and a 128-bit authentication tag.
-- **PBKDF2 Key Derivation**: Uses 100,000 PBKDF2-HMAC-SHA256 iterations with a 128-bit random salt derived from your Master Passcode.
-- **Zero Disk Exposure**: The Master Passcode is never persisted to disk or device preferences.
-- **Inactivity Auto-Lock**: Vault items are automatically scrubbed from memory after 60 seconds of inactivity.
-
-### 🎨 Material You & Theme Presets
-- **Android 13+ Material You Themed Icons**: Includes dedicated `<monochrome>` adaptive launcher vector drawables that dynamically adapt to your Android system wallpaper colors (Monet palette).
+### 🎨 Aesthetic Themes & Micro-Interactions
 - **5 Aesthetic Themes**: *Neon Violet*, *Emerald Matrix*, *Sapphire Glass*, *Cyberpunk Amber*, and *Light Mode*.
 - **One-Click Regenerate**: Tap the generated password display card to instantly roll a new password.
 - **Bulk Generator**: Batch generate 5 to 50 passwords at once with one-click copy or download.
-
-### 🛡️ Privacy-First Architecture
-- **100% Offline**: Neither the Web app nor the Android app makes any external HTTP/socket calls. The Android app completely omits `INTERNET` permission in its manifest.
-- **Window Screen Protection (`FLAG_SECURE`)**: Automatically blocks screenshots, video captures, and task-switcher previews on Android.
-- **Sensitive Clipboard Scrubbing**: Marks clipboard copies as sensitive on Android 13+ (`ClipDescription.EXTRA_IS_SENSITIVE`) and auto-wipes clipboard data after 30 seconds.
-- **Offline QR Code Sharing**: Transfer credentials device-to-device via high-contrast QR codes without network transfer.
+- **Offline QR Code Sharing**: Transfer credentials device-to-device via high-contrast SVG QR codes without network transfer.
 
 ---
 
-## 🤖 Native Android App (Kotlin + Jetpack Compose)
+## 🔒 Security Architecture & Guarantees
 
-The native Android application is located in `android/`.
-
-### 🛠️ Building the Android App
-Prerequisites: JDK 17+ (or Android Studio JBR) and Android SDK (API 36).
-
-```bash
-cd android
-
-# Run unit tests
-./gradlew test
-
-# Assemble Debug APK
-./gradlew assembleDebug
-
-# Assemble Release APK (R8 minified & shrink-wrapped)
-./gradlew assembleRelease
-```
+| Security Layer | Implementation | Benefit |
+| :--- | :--- | :--- |
+| **CSPRNG** | `crypto.getRandomValues()` + Rejection Sampling | Eliminates modulo bias across all character sets. |
+| **CSP** | `default-src 'none'; script-src 'self'; connect-src 'none';` | Physically blocks all outbound network requests, exfiltration, and XSS. |
+| **Framing Defense** | `X-Frame-Options: DENY` & `frame-ancestors 'none'` | Complete protection against clickjacking / UI redressing. |
+| **HSTS** | `Strict-Transport-Security: max-age=31536000; preload` | Strictly enforces HTTPS on all modern browsers. |
+| **Clipboard Privacy** | 30s auto-scrub timer | Automatically wipes copied credentials from the system clipboard. |
+| **Zero Dependencies** | Pure Vanilla HTML5, CSS3, & JS (ES6+) | Eliminates supply-chain attacks and npm vulnerabilities. |
 
 ---
 
-## 🌐 Progressive Web App (PWA)
+## 🚀 Getting Started Locally
 
-No build tools or installation needed!
+No build tools or package managers needed!
 
 ```bash
 # Clone the repository
 git clone https://github.com/cyberlog69/pass-gen.git
+cd pass-gen
 
 # Open index.html in your browser
 start index.html      # Windows
@@ -129,9 +80,19 @@ open index.html       # macOS
 xdg-open index.html   # Linux
 ```
 
-- **Installable**: Full `manifest.json` for "Add to Home Screen" across desktop and mobile.
-- **Cache-First Service Worker (`sw.js`)**: Offline caching with zero network dependencies.
-- **Preloaded Local Fonts**: `Inter.woff2` and `JetBrainsMono.woff2` bundled locally.
+---
+
+## 🧪 Automated Testing
+
+PassGen includes an automated Node.js test runner covering CSPRNG bounds, PIN formatting, Diceware separators, QR generation, AES-256-GCM vault encryption, and breached password detection:
+
+```bash
+# Run unit tests
+node tests/run-tests.js
+
+# Or open in-browser test suite
+start tests/test.html
+```
 
 ---
 
@@ -139,58 +100,32 @@ xdg-open index.html   # Linux
 
 ```
 pass-gen/
-├── release/                 # Pre-built release APKs and SHA-256 checksums
-│   ├── PassGen-v1.2.1.apk
-│   └── PassGen-v1.2.1-checksums.txt
-├── android/                 # Native Android App (Kotlin + Jetpack Compose)
-│   ├── app/
-│   │   ├── src/main/
-│   │   │   ├── AndroidManifest.xml   # Zero-network permission manifest
-│   │   │   ├── java/com/cyberlog69/passgen/
-│   │   │   │   ├── domain/           # CSPRNG, VaultCrypto, LeakedChecker, Models, QR Engine
-│   │   │   │   ├── ui/               # Compose Screens, ViewModels, Dialogs, Theme
-│   │   │   │   └── MainActivity.kt
-│   │   │   └── res/                  # Adaptive icons, Material You monochrome, themes
-│   │   ├── src/test/                 # JVM unit tests (SecureRandom, VaultCrypto, Leaks)
-│   │   └── build.gradle.kts
-│   ├── build.gradle.kts
-│   └── settings.gradle.kts
-├── index.html               # Web PWA markup, CSP, & vault modal
+├── index.html               # Web PWA markup, CSP meta tags, & UI layout
 ├── manifest.json            # Web App Manifest for PWA installation
-├── sw.js                    # Service Worker for offline caching
+├── sw.js                    # Service Worker for offline caching & background updates
 ├── icon.svg                 # PWA App Icon & Favicon
+├── firebase.json            # Firebase Hosting configuration & HTTP security headers
+├── .firebaserc              # Firebase project link (passgen-pwa-3903)
 ├── css/
-│   ├── styles.css           # Glassmorphism, vault cards, responsive layout
+│   ├── styles.css           # Modern glassmorphism, responsive styles & animations
 │   └── fonts.css            # Local @font-face rules
-├── fonts/                   # Bundled fonts (Inter, JetBrains Mono)
+├── fonts/                   # Bundled offline fonts (Inter, JetBrains Mono)
 ├── js/
 │   ├── vault.js             # WebCrypto AES-256-GCM & SHA-256 vault engine (Export/Import)
 │   ├── leaks.js             # Offline breached password & common pattern detector
 │   ├── qrcode.js            # Zero-dependency offline SVG QR code generator
 │   ├── words.js             # Offline EFF wordlist for passphrase mode
-│   └── app.js               # Web CSPRNG, deduplication, & UI controller
-└── tests/
-    ├── run-tests.js         # Node.js automated test runner for CI
-    └── test.html            # In-browser unit test suite
-```
-
----
-
-## 🧪 Automated Testing
-
-### Android Unit Tests
-```bash
-cd android
-./gradlew test
-```
-
-### Web App Tests (Node.js & In-Browser)
-```bash
-# Node.js CLI
-node tests/run-tests.js
-
-# Browser
-open tests/test.html
+│   └── app.js               # Web CSPRNG, UI controller, & clipboard management
+├── tests/
+│   ├── run-tests.js         # Automated Node.js test runner for CI/CD
+│   └── test.html            # In-browser unit test suite
+├── .github/
+│   ├── workflows/
+│   │   ├── test.yml             # Automated CI test suite on pull requests
+│   │   └── deploy-firebase.yml  # Automated deployment to Firebase Hosting on push to main
+│   └── dependabot.yml       # Dependabot configuration for GitHub Actions
+├── SECURITY.md              # Security vulnerability reporting policy
+└── ROADMAP.md               # Future architectural roadmap & milestone checklist
 ```
 
 ---

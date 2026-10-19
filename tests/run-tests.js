@@ -177,6 +177,20 @@ async function main() {
     assert.notStrictEqual(h1, h3, 'Different passwords should have different hashes');
   });
 
+  await runTest('VaultCrypto generates CSPRNG in-memory pepper when localStorage fails', () => {
+    const origGetItem = global.localStorage.getItem;
+    global.localStorage.getItem = () => { throw new Error('SecurityError: Access Denied'); };
+    try {
+      const p1 = VaultCrypto.getOrCreateDevicePepper();
+      const p2 = VaultCrypto.getOrCreateDevicePepper();
+      assert(p1 && p1.length === 64, 'Fallback pepper should be 64 hex characters');
+      assert.strictEqual(p1, p2, 'In-memory fallback pepper should be persistent across session calls');
+      assert.notStrictEqual(p1, '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef', 'Should never use static hardcoded pepper');
+    } finally {
+      global.localStorage.getItem = origGetItem;
+    }
+  });
+
   await runTest('VaultCrypto encrypts and decrypts items via AES-256-GCM', async () => {
     const items = [{ id: '1', title: 'Work WiFi', password: 'wificode99', createdAt: 1000 }];
     const passcode = 'MySecureMasterPasscode123!';
@@ -224,8 +238,8 @@ async function main() {
     assert.strictEqual(threw, true, 'Importing backup with wrong passcode must fail');
   });
 
-  await runTest('VaultCrypto imports Base64 encrypted bundle (Android interoperability)', async () => {
-    const items = [{ id: 'android-1', title: 'Android Card', password: 'card_pin_7788', createdAt: 55555 }];
+  await runTest('VaultCrypto imports Base64 encrypted bundle (Cross-platform bundle format)', async () => {
+    const items = [{ id: 'backup-item-1', title: 'Backup Card', password: 'card_pin_7788', createdAt: 55555 }];
     const passcode = 'CrossPlatformPass#1';
     // Encrypt with VaultCrypto
     const bundle = await VaultCrypto.encryptVault(items, passcode);

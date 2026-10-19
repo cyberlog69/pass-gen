@@ -7,7 +7,21 @@
 .DS_Store
 Thumbs.db
 
-# Build artifacts in subdirectories
-android/build/
-android/app/build/
-android/.gradle/
+# Firebase & Local Cache
+.firebase/
+.firebaserc.local
+firebase-debug.log*
+firestore-debug.log*
+ui-debug.log*
+
+# Node / Dependencies / Logs
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# Sensitive Files
+.env
+.env.*
+*.local
