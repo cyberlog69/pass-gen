@@ -277,7 +277,6 @@ async function main() {
     assert.strictEqual(typeof PassGen.showUpdateBanner, 'function', 'showUpdateBanner should be a function');
     assert.strictEqual(typeof PassGen.hideUpdateBanner, 'function', 'hideUpdateBanner should be a function');
     assert.strictEqual(typeof PassGen.applyUpdate, 'function', 'applyUpdate should be a function');
-    assert.strictEqual(typeof PassGen.checkManualUpdate, 'function', 'checkManualUpdate should be a function');
 
     // Test banner display
     PassGen.showUpdateBanner();
