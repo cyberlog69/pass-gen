@@ -273,6 +273,24 @@ async function main() {
     assert(!LeakedPasswordChecker.checkLeakedPassword('correct-horse-battery-staple').isLeaked);
   });
 
+  await runTest('LeakedPasswordChecker contains 10,000+ signatures and exposes isExcluded()', () => {
+    assert(LeakedPasswordChecker.COMMON_LEAK_COUNT >= 10000, `Expected >= 10,000 breach entries, got ${LeakedPasswordChecker.COMMON_LEAK_COUNT}`);
+    assert.strictEqual(typeof LeakedPasswordChecker.isExcluded, 'function', 'isExcluded should be a function');
+    assert.strictEqual(LeakedPasswordChecker.isExcluded('123456'), true);
+    assert.strictEqual(LeakedPasswordChecker.isExcluded('admin'), true);
+    assert.strictEqual(LeakedPasswordChecker.isExcluded('root'), true);
+    assert.strictEqual(LeakedPasswordChecker.isExcluded('K9#pX2$mQ8@vL1'), false);
+  });
+
+  await runTest('PassGen.generate exclusion loop guarantees no leaked passwords are generated', async () => {
+    for (let i = 0; i < 20; i++) {
+      await PassGen.generate();
+      const output = global.document.getElementById('passText').textContent;
+      assert(output && output.length > 0, 'Generated password should not be empty');
+      assert.strictEqual(LeakedPasswordChecker.isExcluded(output), false, `Generated output was in leak database: ${output}`);
+    }
+  });
+
   await runTest('In-app updater methods are exported and functional', () => {
     assert.strictEqual(typeof PassGen.showUpdateBanner, 'function', 'showUpdateBanner should be a function');
     assert.strictEqual(typeof PassGen.hideUpdateBanner, 'function', 'hideUpdateBanner should be a function');

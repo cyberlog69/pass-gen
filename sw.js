@@ -1,5 +1,5 @@
 // Cache-Only strategy — all assets are pre-cached at install time.
-const CACHE_NAME = 'passgen-v6';
+const CACHE_NAME = 'passgen-v7';
 const ASSETS = [
   './',
   './index.html',

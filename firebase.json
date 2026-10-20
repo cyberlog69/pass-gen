@@ -8,6 +8,8 @@
       "**/.github/**",
       "**/node_modules/**",
       "tests/**",
+      "data/**",
+      "tools/**",
       "ROADMAP.md",
       "LICENSE"
     ],

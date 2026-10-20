@@ -1,0 +1,57 @@
+name: Automated Leaked Password Database Harvester
+
+on:
+  schedule:
+    - cron: '0 3 * * 0' # Every Sunday at 03:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  harvest-and-update:
+    name: Crawl, Deduplicate & Update Breach Database
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+
+      - name: Install Harvester Dependencies
+        run: pip install -r tools/requirements.txt
+
+      - name: Crawl & Aggregate Public Breach Datasets
+        run: python tools/harvester.py
+
+      - name: Deduplicate & Sort Hashes
+        run: python tools/dedup.py
+
+      - name: Export Breach Signatures to js/leaks.js
+        run: python tools/export_top10k.py
+
+      - name: Compile Bloom Filter Index
+        run: python tools/build_bloom_filter.py
+
+      - name: Run Cryptography & Exclusion Test Suite
+        run: node tests/run-tests.js
+
+      - name: Commit and Push Updated Leak Database
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/leaked/ js/leaks.js
+          if git diff --staged --quiet; then
+            echo "No database changes to commit."
+          else
+            git commit -m "chore(db): weekly automated breach database update & exclusion refresh"
+            git push origin main
+          fi

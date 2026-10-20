@@ -1,0 +1,41 @@
+{
+  "harvester_version": "1.0.0",
+  "timestamp": "2026-10-20T20:33:47.914376+00:00",
+  "sources": {
+    "SecLists-10k-Most-Common": {
+      "status": "success",
+      "entries": 10001,
+      "url": "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Passwords/Common-Credentials/10k-most-common.txt"
+    },
+    "SecLists-Pwdb-Top-10000": {
+      "status": "success",
+      "entries": 9932,
+      "url": "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Passwords/Common-Credentials/Pwdb_top-10000.txt"
+    },
+    "SecLists-DarkWeb-Top-10000": {
+      "status": "success",
+      "entries": 9934,
+      "url": "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Passwords/Common-Credentials/darkweb2017_top-10000.txt"
+    },
+    "SecLists-Default-Passwords": {
+      "status": "success",
+      "entries": 1293,
+      "url": "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Passwords/Default-Credentials/default-passwords.txt"
+    }
+  },
+  "total_passwords": 18942,
+  "total_sha1_hashes": 18942,
+  "database_files": {
+    "raw_passwords": "data\\leaked\\raw_passwords.txt",
+    "leaked_hashes": "data\\leaked\\leaked_hashes.txt"
+  },
+  "last_dedup": "2026-10-20T20:34:15.183854+00:00",
+  "exported_js_signatures": 18606,
+  "bloom_filter": {
+    "file": "data\\leaked\\bloom.bin",
+    "size_bytes": 45390,
+    "k_hashes": 13,
+    "m_bits": 363120,
+    "fpr_target": 0.0001
+  }
+}

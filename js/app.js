@@ -419,8 +419,8 @@
     let guidanceInfo = {};
     let candidateHash = '';
 
-    // Rejection sampling against past hashes (up to 10 attempts to prevent collisions)
-    for (let attempt = 0; attempt < 10; attempt++) {
+    // Rejection sampling against breached passwords & past hashes (up to 20 attempts)
+    for (let attempt = 0; attempt < 20; attempt++) {
       if (currentMode === 'password') {
         const rawLen = parseInt(lengthBox.value, 10);
         const len = (isNaN(rawLen) ? 16 : Math.min(128, Math.max(4, rawLen)));
@@ -462,6 +462,15 @@
         password = generatePIN(len);
         bits = calcEntropyBits('pin', { len });
         guidanceInfo = getStrengthGuidance('pin', bits, { len });
+      }
+
+      // Breach Guard: Exclude candidate if present in leaked/compromised database or matches trivial walks/repeats
+      if (window.LeakedPasswordChecker && typeof window.LeakedPasswordChecker.checkLeakedPassword === 'function') {
+        const leakCheck = window.LeakedPasswordChecker.checkLeakedPassword(password);
+        if (leakCheck && leakCheck.isLeaked) {
+          // Candidate matched a known breach signature — reject and re-roll candidate
+          continue;
+        }
       }
 
       // Check SHA-256 collision with past hashes (Password & Passphrase modes only; avoid storing low-entropy PIN hashes)
@@ -1447,7 +1456,8 @@
       STRENGTH_LEVELS,
       showUpdateBanner,
       hideUpdateBanner,
-      applyUpdate
+      applyUpdate,
+      generate
     });
   }
 })();
