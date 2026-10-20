@@ -1404,7 +1404,7 @@
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
               // New update installed and waiting to take over
               showUpdateBanner(newWorker);
-              showToast('New PassGen update ready! Tap Updates to reload.', 'info');
+              showToast('New PassGen update ready! Reload to apply.', 'info');
             }
           });
         });

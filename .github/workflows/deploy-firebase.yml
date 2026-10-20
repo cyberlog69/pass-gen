@@ -26,22 +26,9 @@ jobs:
         run: node tests/run-tests.js
 
       - name: Deploy to Firebase Hosting
-        if: env.FIREBASE_KEY != ''
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_PASSGEN_PWA_3903 }}
           channelId: live
           projectId: passgen-pwa-3903
-        env:
-          FIREBASE_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_PASSGEN_PWA_3903 }}
-
-      - name: Firebase Deployment Secret Setup Notice
-        if: env.FIREBASE_KEY == ''
-        run: |
-          echo "::warning::Firebase deployment skipped: secrets.FIREBASE_SERVICE_ACCOUNT_PASSGEN_PWA_3903 is not configured yet."
-          echo "To enable automated deployments to passcrypt.live / passgen-pwa-3903.web.app on push:"
-          echo "1. Run 'firebase init hosting:github' locally or generate a service account in Firebase Console."
-          echo "2. Add the JSON key as a repository secret named FIREBASE_SERVICE_ACCOUNT_PASSGEN_PWA_3903 in GitHub Settings -> Secrets and variables -> Actions."
-        env:
-          FIREBASE_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_PASSGEN_PWA_3903 }}
