@@ -2,7 +2,7 @@ name: Automated Leaked Password Database Harvester
 
 on:
   schedule:
-    - cron: '0 3 * * 0' # Every Sunday at 03:00 UTC
+    - cron: '0 3 * * 0,6' # Every weekend (Saturday & Sunday at 03:00 UTC)
   workflow_dispatch:
 
 permissions:
@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   harvest-and-update:
-    name: Crawl, Deduplicate & Update Breach Database
+    name: Crawl, Deduplicate, Test & Deploy Breach Database
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -45,13 +45,25 @@ jobs:
         run: node tests/run-tests.js
 
       - name: Commit and Push Updated Leak Database
+        id: commit_step
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/leaked/ js/leaks.js
           if git diff --staged --quiet; then
             echo "No database changes to commit."
+            echo "changed=false" >> $GITHUB_OUTPUT
           else
-            git commit -m "chore(db): weekly automated breach database update & exclusion refresh"
+            git commit -m "chore(db): automated weekend breach database update & exclusion refresh"
             git push origin main
+            echo "changed=true" >> $GITHUB_OUTPUT
           fi
+
+      - name: Deploy Updated Database to Firebase Hosting
+        if: steps.commit_step.outputs.changed == 'true'
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_PASSGEN_PWA_3903 }}
+          channelId: live
+          projectId: passgen-pwa-3903

@@ -1,6 +1,6 @@
 {
   "harvester_version": "1.0.0",
-  "timestamp": "2026-10-20T20:33:47.914376+00:00",
+  "timestamp": "2026-10-21T12:34:47.743293+00:00",
   "sources": {
     "SecLists-10k-Most-Common": {
       "status": "success",
@@ -17,25 +17,35 @@
       "entries": 9934,
       "url": "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Passwords/Common-Credentials/darkweb2017_top-10000.txt"
     },
+    "SecLists-NCSC-Top-100k": {
+      "status": "success",
+      "entries": 99559,
+      "url": "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Passwords/Common-Credentials/100k-most-used-passwords-NCSC.txt"
+    },
+    "SecLists-Top-Leaked-PINs": {
+      "status": "success",
+      "entries": 10000,
+      "url": "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Passwords/Common-Credentials/four-digit-pin-codes-sorted-by-frequency-withcount.csv"
+    },
     "SecLists-Default-Passwords": {
       "status": "success",
       "entries": 1293,
       "url": "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Passwords/Default-Credentials/default-passwords.txt"
     }
   },
-  "total_passwords": 18942,
-  "total_sha1_hashes": 18942,
+  "total_passwords": 110999,
+  "total_sha1_hashes": 110999,
   "database_files": {
     "raw_passwords": "data\\leaked\\raw_passwords.txt",
     "leaked_hashes": "data\\leaked\\leaked_hashes.txt"
   },
-  "last_dedup": "2026-10-20T20:34:15.183854+00:00",
-  "exported_js_signatures": 18606,
+  "last_dedup": "2026-10-21T12:35:46.939162+00:00",
+  "exported_js_signatures": 20000,
   "bloom_filter": {
     "file": "data\\leaked\\bloom.bin",
-    "size_bytes": 45390,
+    "size_bytes": 265983,
     "k_hashes": 13,
-    "m_bits": 363120,
+    "m_bits": 2127864,
     "fpr_target": 0.0001
   }
 }

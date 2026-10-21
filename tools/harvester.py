@@ -62,6 +62,16 @@ PUBLIC_BREACH_URLS = [
         "type": "lines"
     },
     {
+        "name": "SecLists-NCSC-Top-100k",
+        "url": "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Passwords/Common-Credentials/100k-most-used-passwords-NCSC.txt",
+        "type": "lines"
+    },
+    {
+        "name": "SecLists-Top-Leaked-PINs",
+        "url": "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Passwords/Common-Credentials/four-digit-pin-codes-sorted-by-frequency-withcount.csv",
+        "type": "csv"
+    },
+    {
         "name": "SecLists-Default-Passwords",
         "url": "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Passwords/Default-Credentials/default-passwords.txt",
         "type": "lines"
@@ -111,10 +121,11 @@ def harvest_public_lists(passwords: Set[str], telemetry: Dict[str, Any]):
         return
 
     headers = {"User-Agent": "PassGen-Security-Research-Harvester/1.0"}
-    with httpx.Client(timeout=20.0, follow_redirects=True, headers=headers) as client:
+    with httpx.Client(timeout=40.0, follow_redirects=True, headers=headers) as client:
         for src in PUBLIC_BREACH_URLS:
             name = src["name"]
             url = src["url"]
+            is_csv = src.get("type") == "csv"
             print(f"[*] Crawling source: {name} ...")
             try:
                 resp = client.get(url)
@@ -122,7 +133,8 @@ def harvest_public_lists(passwords: Set[str], telemetry: Dict[str, Any]):
                     lines = resp.text.splitlines()
                     count = 0
                     for line in lines:
-                        cleaned = clean_password(line)
+                        val = line.split(",")[0] if is_csv else line
+                        cleaned = clean_password(val)
                         if cleaned:
                             passwords.add(cleaned)
                             count += 1
