@@ -1,6 +1,6 @@
 {
   "harvester_version": "1.0.0",
-  "timestamp": "2026-10-24T09:48:45.209009+00:00",
+  "timestamp": "2026-10-25T08:04:12.714533+00:00",
   "sources": {
     "SecLists-10k-Most-Common": {
       "status": "success",
@@ -39,7 +39,7 @@
     "raw_passwords": "data/leaked/raw_passwords.txt",
     "leaked_hashes": "data/leaked/leaked_hashes.txt"
   },
-  "last_dedup": "2026-10-24T09:48:46.271797+00:00",
+  "last_dedup": "2026-10-25T08:04:14.300982+00:00",
   "exported_js_signatures": 20000,
   "bloom_filter": {
     "file": "data/leaked/bloom.bin",
