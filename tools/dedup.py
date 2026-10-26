@@ -54,11 +54,8 @@ def main():
         h = hashlib.sha1(pw.encode("utf-8", errors="ignore")).hexdigest().upper()
         hashes.add(h)
 
-    # Sort & rewrite
+    # Sort in-memory only; do not persist raw passwords in clear text
     sorted_passwords = sorted(passwords, key=lambda s: (len(s), s))
-    with open(RAW_FILE, "w", encoding="utf-8") as f:
-        for pw in sorted_passwords:
-            f.write(pw + "\n")
 
     sorted_hashes = sorted(hashes)
     with open(HASH_FILE, "w", encoding="utf-8") as f:
