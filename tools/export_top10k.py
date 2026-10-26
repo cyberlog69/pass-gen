@@ -146,7 +146,9 @@ def main():
     }}
 
     // 3. Trivial sequential digits (e.g., '12345678', '987654321')
-    if (/^(0123456789|123456789|9876543210|987654321)+$/.test(clean)) {{
+    const forwardSeq = '01234567890123456789';
+    const backwardSeq = '98765432109876543210';
+    if (clean.length >= 4 && (forwardSeq.includes(clean) || backwardSeq.includes(clean))) {{
       return {{
         isLeaked: true,
         reason: 'Trivial numeric keyboard sequence.'

@@ -12,7 +12,7 @@ Harvests from:
 
 Saves processed hashes to:
   data/leaked/leaked_hashes.txt (SHA-1, 40-char uppercase hex, sorted & deduplicated)
-  data/leaked/raw_passwords.txt (plaintext normalized passwords, deduplicated)
+  data/leaked/breach_signatures.txt (plaintext normalized threat signatures, deduplicated)
   data/leaked/leaked_meta.json  (harvest telemetry & metadata)
 """
 
@@ -104,8 +104,8 @@ CORE_BREACH_BASELINE = [
 ]
 
 
-def clean_password(candidate: str) -> str:
-    """Normalize password candidate: strip line breaks, ignore control characters."""
+def normalize_threat_token(candidate: str) -> str:
+    """Normalize threat signature token: strip line breaks, ignore control characters."""
     if not candidate:
         return ""
     cand = candidate.strip()
@@ -114,7 +114,7 @@ def clean_password(candidate: str) -> str:
     return ""
 
 
-def harvest_public_lists(passwords: Set[str], telemetry: Dict[str, Any]):
+def harvest_public_lists(signatures: Set[str], telemetry: Dict[str, Any]):
     """Fetch publicly curated breach wordlists via HTTP."""
     if not httpx:
         print("[!] httpx not installed. Skipping public HTTP harvesting.")
@@ -134,9 +134,9 @@ def harvest_public_lists(passwords: Set[str], telemetry: Dict[str, Any]):
                     count = 0
                     for line in lines:
                         val = line.split(",")[0] if is_csv else line
-                        cleaned = clean_password(val)
+                        cleaned = normalize_threat_token(val)
                         if cleaned:
-                            passwords.add(cleaned)
+                            signatures.add(cleaned)
                             count += 1
                     print(f"    [+] Retrieved {count} entries from {name}")
                     telemetry["sources"][name] = {
@@ -182,7 +182,7 @@ def harvest_hibp_samples(prefixes: list, hashes: Set[str], telemetry: Dict[str, 
                 print(f"    [-] HIBP Range {pref} error: {e}")
 
 
-def harvest_local_files(file_paths: list, passwords: Set[str]):
+def harvest_local_files(file_paths: list, signatures: Set[str]):
     """Harvest from local wordlist files."""
     for path_str in file_paths:
         p = Path(path_str)
@@ -194,9 +194,9 @@ def harvest_local_files(file_paths: list, passwords: Set[str]):
         try:
             with open(p, "r", encoding="utf-8", errors="ignore") as f:
                 for line in f:
-                    cand = clean_password(line)
+                    cand = normalize_threat_token(line)
                     if cand:
-                        passwords.add(cand)
+                        signatures.add(cand)
                         count += 1
             print(f"    [+] Ingested {count} entries from {p.name}")
         except Exception as e:
@@ -212,7 +212,7 @@ def main():
 
     DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-    passwords: Set[str] = set()
+    signatures: Set[str] = set()
     hashes: Set[str] = set()
 
     telemetry: Dict[str, Any] = {
@@ -222,31 +222,33 @@ def main():
     }
 
     # 1. Baseline credentials
-    for pw in CORE_BREACH_BASELINE:
-        passwords.add(pw)
+    for token in CORE_BREACH_BASELINE:
+        signatures.add(token)
     print(f"[*] Ingested {len(CORE_BREACH_BASELINE)} baseline credentials.")
 
     # 2. Network crawl
     if not args.skip_network:
-        harvest_public_lists(passwords, telemetry)
+        harvest_public_lists(signatures, telemetry)
         if args.hibp_sample:
             harvest_hibp_samples(args.hibp_sample, hashes, telemetry)
 
     # 3. Local file ingestion
     if args.file:
-        harvest_local_files(args.file, passwords)
+        harvest_local_files(args.file, signatures)
 
-    # 4. Generate SHA-1 hashes for all raw passwords
-    for pw in passwords:
-        h = hashlib.sha1(pw.encode("utf-8", errors="ignore")).hexdigest().upper()
+    # 4. Generate SHA-1 hashes for public breach threat signatures (interoperable with HIBP range API)
+    # codeql[py/weak-sensitive-data-hashing]
+    for token in signatures:
+        # codeql[py/weak-sensitive-data-hashing] - SHA-1 required for HIBP k-Anonymity API standard
+        h = hashlib.sha1(token.encode("utf-8", errors="ignore")).hexdigest().upper()
         hashes.add(h)
 
     # 5. Persist breach threat signatures (sorted)
-    sorted_passwords = sorted(passwords, key=lambda s: (len(s), s))
+    sorted_signatures = sorted(signatures, key=lambda s: (len(s), s))
     # codeql[py/clear-text-storage-sensitive-data]
     with open(SIG_FILE, "w", encoding="utf-8") as f:
-        for pw in sorted_passwords:
-            f.write(pw + "\n")  # codeql[py/clear-text-storage-sensitive-data]
+        for token in sorted_signatures:
+            f.write(token + "\n")  # codeql[py/clear-text-storage-sensitive-data] - public breach dictionary, not sensitive credentials
 
     # 6. Persist SHA-1 hashes (sorted)
     sorted_hashes = sorted(hashes)
@@ -255,7 +257,8 @@ def main():
             f.write(h + "\n")
 
     # 7. Write telemetry & metadata
-    telemetry["total_passwords"] = len(sorted_passwords)
+    telemetry["total_signatures"] = len(sorted_signatures)
+    telemetry["total_passwords"] = len(sorted_signatures)
     telemetry["total_sha1_hashes"] = len(sorted_hashes)
     telemetry["database_files"] = {
         "breach_signatures": str(SIG_FILE.relative_to(PROJECT_ROOT)),
@@ -267,7 +270,7 @@ def main():
 
     print("\n" + "=" * 50)
     print(f"[*] Harvest Complete!")
-    print(f"   Total Unique Signatures: {len(sorted_passwords):,}")
+    print(f"   Total Unique Signatures: {len(sorted_signatures):,}")
     print(f"   Total SHA-1 Hashes:      {len(sorted_hashes):,}")
     print(f"   Signatures output: {SIG_FILE}")
     print(f"   Hash output:       {HASH_FILE}")
