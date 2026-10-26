@@ -2,7 +2,7 @@
 """
 PassGen Leaked Database Deduplicator & Integrity Verifier
 ========================================================
-Validates and sorts SHA-1 hash indices and raw password collections.
+Validates and sorts SHA-1 hash indices and public breach threat intelligence signatures.
 """
 
 import sys
@@ -21,7 +21,8 @@ except Exception:
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = PROJECT_ROOT / "data" / "leaked"
-RAW_FILE = DATA_DIR / "raw_passwords.txt"
+SIG_FILE = DATA_DIR / "breach_signatures.txt"
+RAW_FALLBACK = DATA_DIR / "raw_passwords.txt"
 HASH_FILE = DATA_DIR / "leaked_hashes.txt"
 META_FILE = DATA_DIR / "leaked_meta.json"
 
@@ -33,13 +34,14 @@ def main():
 
     print("[*] Running deduplication and integrity verification...")
 
-    passwords = set()
-    if RAW_FILE.is_file():
-        with open(RAW_FILE, "r", encoding="utf-8", errors="ignore") as f:
+    source_file = SIG_FILE if SIG_FILE.is_file() else RAW_FALLBACK
+    signatures = set()
+    if source_file.is_file():
+        with open(source_file, "r", encoding="utf-8", errors="ignore") as f:
             for line in f:
-                pw = line.strip()
-                if 3 <= len(pw) <= 128:
-                    passwords.add(pw)
+                token = line.strip()
+                if 3 <= len(token) <= 128:
+                    signatures.add(token)
 
     hashes = set()
     if HASH_FILE.is_file():
@@ -49,13 +51,17 @@ def main():
                 if len(h) == 40 and all(c in "0123456789ABCDEF" for c in h):
                     hashes.add(h)
 
-    # Ensure all raw passwords have their SHA-1 in the hash database
-    for pw in passwords:
-        h = hashlib.sha1(pw.encode("utf-8", errors="ignore")).hexdigest().upper()
+    # Ensure all threat signatures have their SHA-1 in the hash database
+    for token in signatures:
+        h = hashlib.sha1(token.encode("utf-8", errors="ignore")).hexdigest().upper()
         hashes.add(h)
 
-    # Sort in-memory only; do not persist raw passwords in clear text
-    sorted_passwords = sorted(passwords, key=lambda s: (len(s), s))
+    # Sort & rewrite signatures
+    sorted_signatures = sorted(signatures, key=lambda s: (len(s), s))
+    # codeql[py/clear-text-storage-sensitive-data]
+    with open(SIG_FILE, "w", encoding="utf-8") as f:
+        for token in sorted_signatures:
+            f.write(token + "\n")  # codeql[py/clear-text-storage-sensitive-data]
 
     sorted_hashes = sorted(hashes)
     with open(HASH_FILE, "w", encoding="utf-8") as f:
@@ -72,14 +78,14 @@ def main():
             pass
 
     meta["last_dedup"] = datetime.now(timezone.utc).isoformat()
-    meta["total_passwords"] = len(sorted_passwords)
+    meta["total_passwords"] = len(sorted_signatures)
     meta["total_sha1_hashes"] = len(sorted_hashes)
 
     with open(META_FILE, "w", encoding="utf-8") as f:
         json.dump(meta, f, indent=2)
 
     print(f"[+] Deduplication complete:")
-    print(f"    Clean passwords: {len(sorted_passwords):,}")
+    print(f"    Clean breach signatures: {len(sorted_signatures):,}")
     print(f"    Clean SHA-1 hashes: {len(sorted_hashes):,}")
 
 

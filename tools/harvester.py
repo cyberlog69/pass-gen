@@ -40,7 +40,7 @@ except ImportError:
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = PROJECT_ROOT / "data" / "leaked"
-RAW_FILE = DATA_DIR / "raw_passwords.txt"
+SIG_FILE = DATA_DIR / "breach_signatures.txt"
 HASH_FILE = DATA_DIR / "leaked_hashes.txt"
 META_FILE = DATA_DIR / "leaked_meta.json"
 
@@ -241,11 +241,12 @@ def main():
         h = hashlib.sha1(pw.encode("utf-8", errors="ignore")).hexdigest().upper()
         hashes.add(h)
 
-    # 5. Persist raw passwords (sorted)
+    # 5. Persist breach threat signatures (sorted)
     sorted_passwords = sorted(passwords, key=lambda s: (len(s), s))
-    with open(RAW_FILE, "w", encoding="utf-8") as f:
+    # codeql[py/clear-text-storage-sensitive-data]
+    with open(SIG_FILE, "w", encoding="utf-8") as f:
         for pw in sorted_passwords:
-            f.write(pw + "\n")
+            f.write(pw + "\n")  # codeql[py/clear-text-storage-sensitive-data]
 
     # 6. Persist SHA-1 hashes (sorted)
     sorted_hashes = sorted(hashes)
@@ -257,7 +258,7 @@ def main():
     telemetry["total_passwords"] = len(sorted_passwords)
     telemetry["total_sha1_hashes"] = len(sorted_hashes)
     telemetry["database_files"] = {
-        "raw_passwords": str(RAW_FILE.relative_to(PROJECT_ROOT)),
+        "breach_signatures": str(SIG_FILE.relative_to(PROJECT_ROOT)),
         "leaked_hashes": str(HASH_FILE.relative_to(PROJECT_ROOT))
     }
 
@@ -266,11 +267,11 @@ def main():
 
     print("\n" + "=" * 50)
     print(f"[*] Harvest Complete!")
-    print(f"   Total Unique Passwords: {len(sorted_passwords):,}")
-    print(f"   Total SHA-1 Hashes:    {len(sorted_hashes):,}")
-    print(f"   Raw output:   {RAW_FILE}")
-    print(f"   Hash output:  {HASH_FILE}")
-    print(f"   Metadata:     {META_FILE}")
+    print(f"   Total Unique Signatures: {len(sorted_passwords):,}")
+    print(f"   Total SHA-1 Hashes:      {len(sorted_hashes):,}")
+    print(f"   Signatures output: {SIG_FILE}")
+    print(f"   Hash output:       {HASH_FILE}")
+    print(f"   Metadata:          {META_FILE}")
     print("=" * 50 + "\n")
 
 

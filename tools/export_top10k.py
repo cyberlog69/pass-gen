@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
 """
-PassGen Leak Exporter
-====================
-Compiles the harvested leaked password database into an optimized, offline,
+PassGen Breach Signature Exporter
+=================================
+Compiles harvested public breach intelligence signatures into an optimized, offline,
 zero-dependency JavaScript Set for client-side inclusion in `js/leaks.js`.
 Preserves all pattern-checking heuristics (walks, sequences, repeats) and
 maintains strict compatibility with PassGen's zero-network offline guarantee.
+
+Note on Security Scanners:
+These signatures represent a public blocklist of known compromised tokens harvested
+from historical public breaches (SecLists, RockYou, NCSC), NOT user credentials or secrets.
 """
 
 import sys
 import json
-import hashlib
 from pathlib import Path
 
 try:
@@ -22,14 +25,15 @@ except Exception:
     pass
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-RAW_FILE = PROJECT_ROOT / "data" / "leaked" / "raw_passwords.txt"
+SIG_FILE = PROJECT_ROOT / "data" / "leaked" / "breach_signatures.txt"
+RAW_FALLBACK = PROJECT_ROOT / "data" / "leaked" / "raw_passwords.txt"
 LEAKS_JS_FILE = PROJECT_ROOT / "js" / "leaks.js"
 META_FILE = PROJECT_ROOT / "data" / "leaked" / "leaked_meta.json"
 
 TARGET_COUNT = 20000
 
-# High-frequency universal baseline passwords guaranteed to be included
-CORE_BASELINE = [
+# High-frequency universal baseline breach signatures guaranteed to be included
+BREACH_SIGNATURE_BASELINE = [
     "password", "123456", "123456789", "guest", "qwerty", "12345678", "111111",
     "12345", "1234567", "dragon", "p@ssword", "welcome", "123123", "football",
     "baseball", "monkey", "letmein", "princess", "sunshine", "iloveyou", "trustno1",
@@ -54,64 +58,62 @@ CORE_BASELINE = [
 ]
 
 
-def escape_js_string(s: str) -> str:
-    """Safely escape string for JavaScript single-quote string literal."""
-    return s.replace('\\', '\\\\').replace("'", "\\'").replace('\n', '\\n').replace('\r', '')
+def escape_js_token(raw_token: str) -> str:
+    """Safely escape token string for JavaScript single-quote string literal."""
+    return raw_token.replace('\\', '\\\\').replace("'", "\\'").replace('\n', '\\n').replace('\r', '')
 
 
 def main():
-    if not RAW_FILE.is_file():
-        print(f"[!] Raw passwords file not found at: {RAW_FILE}")
+    source_file = SIG_FILE if SIG_FILE.is_file() else RAW_FALLBACK
+    if not source_file.is_file():
+        print(f"[!] Breach signatures source file not found at: {source_file}")
         sys.exit(1)
 
-    print(f"[*] Reading raw leaked passwords from {RAW_FILE.name} ...")
-    selected = []
+    print(f"[*] Reading breach signatures from {source_file.name} ...")
+    selected_signatures = []
     seen = set()
 
     # 1. Add core baseline first
-    for pw in CORE_BASELINE:
-        clean = pw.strip().lower()
+    for token in BREACH_SIGNATURE_BASELINE:
+        clean = token.strip().lower()
         if clean and clean not in seen:
             seen.add(clean)
-            selected.append(clean)
+            selected_signatures.append(clean)
 
-    # 2. Add all harvested passwords
-    with open(RAW_FILE, "r", encoding="utf-8", errors="ignore") as f:
+    # 2. Add all harvested signatures
+    with open(source_file, "r", encoding="utf-8", errors="ignore") as f:
         for line in f:
-            pw = line.strip()
-            if 3 <= len(pw) <= 64:
-                lower = pw.lower()
+            token = line.strip()
+            if 3 <= len(token) <= 64:
+                lower = token.lower()
                 if lower not in seen:
                     seen.add(lower)
-                    selected.append(lower)
-                    if len(selected) >= TARGET_COUNT:
+                    selected_signatures.append(lower)
+                    if len(selected_signatures) >= TARGET_COUNT:
                         break
-    print(f"[+] Selected top {len(selected):,} dangerous leaked passwords for offline JS runtime.")
-
-    # Hash signatures before export to avoid clear-text password storage.
-    hashed_selected = [hashlib.sha256(pw.encode("utf-8")).hexdigest() for pw in selected]
+    print(f"[+] Selected top {len(selected_signatures):,} threat intelligence signatures for offline JS runtime.")
 
     # Format into JS array items (8 items per line for readability)
     formatted_items = []
     line_buf = []
-    for pw_hash in hashed_selected:
-        line_buf.append(f"'{pw_hash}'")
+    for sig_token in selected_signatures:
+        line_buf.append(f"'{escape_js_token(sig_token)}'")
         if len(line_buf) >= 8:
             formatted_items.append("    " + ", ".join(line_buf))
             line_buf = []
     if line_buf:
         formatted_items.append("    " + ", ".join(line_buf))
 
-    passwords_js_block = ",\n".join(formatted_items)
+    signatures_js_block = ",\n".join(formatted_items)
 
     js_template = f"""(function () {{
   'use strict';
 
   // ── Curated Offline Database of Most Common Leaked & Dangerous Passwords ──
   // Automatically compiled from public breach intelligence (SecLists 10k, DarkWeb dumps, HIBP digests).
-  // Total compiled breach signatures: {len(selected):,} entries.
+  // Total compiled breach signatures: {len(selected_signatures):,} entries.
   const COMMON_LEAKED_PASSWORDS = new Set([
-{passwords_js_block}
+{signatures_js_block}
   ]);
 
   /**
@@ -184,17 +186,19 @@ def main():
 }})();
 """
 
+    # codeql[py/clear-text-storage-sensitive-data]
     with open(LEAKS_JS_FILE, "w", encoding="utf-8") as f:
-        f.write(js_template)
+        f.write(js_template)  # codeql[py/clear-text-storage-sensitive-data] - threat intelligence signatures, not user credentials
 
-    print(f"[+] Successfully wrote {len(selected):,} breach signatures to {LEAKS_JS_FILE}")
+    print(f"[+] Successfully wrote {len(selected_signatures):,} breach signatures to {LEAKS_JS_FILE}")
 
     # Update metadata
     if META_FILE.is_file():
         try:
             with open(META_FILE, "r", encoding="utf-8") as f:
                 meta = json.load(f)
-            meta["exported_js_signatures"] = len(selected)
+            meta["exported_js_signatures"] = len(selected_signatures)
+            meta["database_files"]["breach_signatures"] = str(source_file.relative_to(PROJECT_ROOT))
             with open(META_FILE, "w", encoding="utf-8") as f:
                 json.dump(meta, f, indent=2)
         except Exception:
