@@ -10,6 +10,7 @@ maintains strict compatibility with PassGen's zero-network offline guarantee.
 
 import sys
 import json
+import hashlib
 from pathlib import Path
 
 try:
@@ -87,11 +88,14 @@ def main():
                         break
     print(f"[+] Selected top {len(selected):,} dangerous leaked passwords for offline JS runtime.")
 
+    # Hash signatures before export to avoid clear-text password storage.
+    hashed_selected = [hashlib.sha256(pw.encode("utf-8")).hexdigest() for pw in selected]
+
     # Format into JS array items (8 items per line for readability)
     formatted_items = []
     line_buf = []
-    for pw in selected:
-        line_buf.append(f"'{escape_js_string(pw)}'")
+    for pw_hash in hashed_selected:
+        line_buf.append(f"'{pw_hash}'")
         if len(line_buf) >= 8:
             formatted_items.append("    " + ", ".join(line_buf))
             line_buf = []
